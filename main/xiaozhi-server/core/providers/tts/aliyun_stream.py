@@ -416,6 +416,16 @@ class TTSProvider(TTSProviderBase):
             self.ws = None
             self.last_active_time = None
 
+    def _flush_pending_sentence_text(self) -> bool:
+        """将等待播放的文本推送到音频队列"""
+        pending_text = getattr(self.conn, "tts_MessageText", None)
+        if pending_text:
+            logger.bind(tag=TAG).info(f"句子语音生成成功： {pending_text}")
+            self.tts_audio_queue.put((SentenceType.FIRST, [], pending_text))
+            self.conn.tts_MessageText = None
+            return True
+        return False
+
     async def _start_monitor_tts_response(self):
         """监听TTS响应"""
         try:
@@ -440,14 +450,7 @@ class TTSProvider(TTSProviderBase):
                                 )
                             elif event_name == "SentenceEnd":
                                 # 发送缓存的数据
-                                if self.conn.tts_MessageText:
-                                    logger.bind(tag=TAG).info(
-                                        f"句子语音生成成功： {self.conn.tts_MessageText}"
-                                    )
-                                    self.tts_audio_queue.put(
-                                        (SentenceType.FIRST, [], self.conn.tts_MessageText)
-                                    )
-                                    self.conn.tts_MessageText = None
+                                self._flush_pending_sentence_text()
                             elif event_name == "SynthesisCompleted":
                                 logger.bind(tag=TAG).debug(f"会话结束～～")
                                 self._process_before_stop_play_files()
@@ -466,6 +469,8 @@ class TTSProvider(TTSProviderBase):
                         f"处理TTS响应时出错: {e}\n{traceback.format_exc()}"
                     )
                     break
+                finally:
+                    self._flush_pending_sentence_text()
             # 仅在连接异常时才关闭
             if not session_finished and self.ws:
                 try:

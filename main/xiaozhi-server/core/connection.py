@@ -28,6 +28,7 @@ from core.providers.tts.default import DefaultTTS
 from concurrent.futures import ThreadPoolExecutor
 from core.utils.dialogue import Message, Dialogue
 from core.providers.asr.dto.dto import InterfaceType
+from core.providers.llm.base import LLMProviderBase
 from core.handle.textHandle import handleTextMessage
 from core.providers.tools.unified_tool_handler import UnifiedToolHandler
 from plugins_func.loadplugins import auto_import_modules
@@ -134,6 +135,8 @@ class ConnectionHandler:
         self.sentence_id = None
         # 处理TTS响应没有文本返回
         self.tts_MessageText = ""
+        self._tts_sentence_processed_chars = 0
+        self._tts_sentence_is_first_sentence = True
 
         # iot相关变量
         self.iot_descriptors = {}
@@ -456,6 +459,8 @@ class ConnectionHandler:
             """更新系统提示词"""
             self._init_prompt_enhancement()
 
+            self.llm.set_mcp_endpoint(self.config.get("mcp_endpoint", None))
+
         except Exception as e:
             self.logger.bind(tag=TAG).error(f"实例化组件失败: {e}")
 
@@ -641,7 +646,7 @@ class ConnectionHandler:
         if modules.get("asr", None) is not None:
             self.asr = modules["asr"]
         if modules.get("llm", None) is not None:
-            self.llm = modules["llm"]
+            self.llm:LLMProviderBase = modules["llm"]
         if modules.get("intent", None) is not None:
             self.intent = modules["intent"]
         if modules.get("memory", None) is not None:
@@ -738,6 +743,40 @@ class ConnectionHandler:
         if hasattr(self, "loop") and self.loop:
             asyncio.run_coroutine_threadsafe(self.func_handler._initialize(), self.loop)
 
+    def _reset_tts_sentence_state(self):
+        self._tts_sentence_processed_chars = 0
+        self._tts_sentence_is_first_sentence = True
+
+    def _extract_valid_tts_sentence(self, response_message):
+        if self.tts is None or not response_message:
+            return None
+        full_text = "".join(response_message)
+        if self._tts_sentence_processed_chars >= len(full_text):
+            return None
+        current_text = full_text[self._tts_sentence_processed_chars :]
+        if not current_text:
+            return None
+        punctuations = (
+            getattr(self.tts, "first_sentence_punctuations", ())
+            if self._tts_sentence_is_first_sentence
+            else getattr(self.tts, "punctuations", ())
+        )
+        last_punct_pos = -1
+        for punct in punctuations:
+            pos = current_text.rfind(punct)
+            if pos != -1 and (last_punct_pos == -1 or pos < last_punct_pos):
+                last_punct_pos = pos
+        if last_punct_pos != -1:
+            segment_text_raw = current_text[: last_punct_pos + 1]
+            segment_text = textUtils.get_string_no_punctuation_or_emoji(
+                segment_text_raw
+            )
+            self._tts_sentence_processed_chars += len(segment_text_raw)
+            if self._tts_sentence_is_first_sentence:
+                self._tts_sentence_is_first_sentence = False
+            return segment_text
+        return None
+
     def change_system_prompt(self, prompt):
         self.prompt = prompt
         # 更新系统prompt至上下文
@@ -764,6 +803,7 @@ class ConnectionHandler:
         if self.intent_type == "function_call" and hasattr(self, "func_handler"):
             functions = self.func_handler.get_functions()
         response_message = []
+        self._reset_tts_sentence_state()
 
         try:
             # 使用带记忆的对话
@@ -847,6 +887,9 @@ class ConnectionHandler:
                             content_detail=content,
                         )
                     )
+                    sentence = self._extract_valid_tts_sentence(response_message)
+                    if sentence:
+                        self.tts_MessageText = sentence
         # 处理function call
         if tool_call_flag:
             bHasError = False
@@ -877,6 +920,7 @@ class ConnectionHandler:
                     self.tts_MessageText = text_buff
                     self.dialogue.put(Message(role="assistant", content=text_buff))
                 response_message.clear()
+                self._reset_tts_sentence_state()
                 self.logger.bind(tag=TAG).debug(
                     f"function_name={function_name}, function_id={function_id}, function_arguments={function_arguments}"
                 )
