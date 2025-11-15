@@ -942,7 +942,7 @@ class ConnectionHandler:
         # 存储对话内容
         if len(response_message) > 0:
             text_buff = "".join(response_message)
-            self.tts_MessageText = text_buff
+            # self.tts_MessageText = text_buff
             self.dialogue.put(Message(role="assistant", content=text_buff))
         if depth == 0:
             self.tts.tts_text_queue.put(
