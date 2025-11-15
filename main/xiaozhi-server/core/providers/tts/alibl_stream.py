@@ -342,15 +342,21 @@ class TTSProvider(TTSProviderBase):
                                 logger.bind(tag=TAG).debug("TTS任务启动成功~")
                                 self.tts_audio_queue.put((SentenceType.FIRST, [], None))
                             elif event == "result-generated":
-                                # 发送缓存的数据
-                                if self.conn.tts_MessageText:
-                                    logger.bind(tag=TAG).info(
-                                        f"句子语音生成成功： {self.conn.tts_MessageText}"
-                                    )
-                                    self.tts_audio_queue.put(
-                                        (SentenceType.FIRST, [], self.conn.tts_MessageText)
-                                    )
-                                    self.conn.tts_MessageText = None
+                                # 发送缓存的数据 - 处理队列中的所有文本项，避免竞态条件导致丢失
+                                pending_queue = getattr(self.conn, "tts_MessageText", None)
+                                if pending_queue:
+                                    while True:
+                                        try:
+                                            pending_text = pending_queue.get_nowait()
+                                            if pending_text:
+                                                logger.bind(tag=TAG).info(
+                                                    f"句子语音生成成功： {pending_text}"
+                                                )
+                                                self.tts_audio_queue.put(
+                                                    (SentenceType.FIRST, [], pending_text)
+                                                )
+                                        except queue.Empty:
+                                            break
                             elif event == "task-finished":
                                 logger.bind(tag=TAG).debug("TTS任务完成~")
                                 self._process_before_stop_play_files()

@@ -133,8 +133,8 @@ class ConnectionHandler:
 
         # tts相关变量
         self.sentence_id = None
-        # 处理TTS响应没有文本返回
-        self.tts_MessageText = ""
+        # 处理TTS响应没有文本返回 - 使用队列避免竞态条件
+        self.tts_MessageText = queue.Queue()
         self._tts_sentence_processed_chars = 0
         self._tts_sentence_is_first_sentence = True
 
@@ -889,7 +889,7 @@ class ConnectionHandler:
                     )
                     sentence = self._extract_valid_tts_sentence(response_message)
                     if sentence:
-                        self.tts_MessageText = sentence
+                        self.tts_MessageText.put(sentence)
         # 处理function call
         if tool_call_flag:
             bHasError = False
@@ -917,7 +917,7 @@ class ConnectionHandler:
                 # 如需要大模型先处理一轮，添加相关处理后的日志情况
                 if len(response_message) > 0:
                     text_buff = "".join(response_message)
-                    self.tts_MessageText = text_buff
+                    self.tts_MessageText.put(text_buff)
                     self.dialogue.put(Message(role="assistant", content=text_buff))
                 response_message.clear()
                 self._reset_tts_sentence_state()

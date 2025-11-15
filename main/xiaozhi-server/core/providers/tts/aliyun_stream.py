@@ -418,12 +418,20 @@ class TTSProvider(TTSProviderBase):
 
     def _flush_pending_sentence_text(self) -> bool:
         """将等待播放的文本推送到音频队列"""
-        pending_text = getattr(self.conn, "tts_MessageText", None)
-        if pending_text:
-            logger.bind(tag=TAG).info(f"句子语音生成成功： {pending_text}")
-            self.tts_audio_queue.put((SentenceType.FIRST, [], pending_text))
-            self.conn.tts_MessageText = None
-            return True
+        pending_queue = getattr(self.conn, "tts_MessageText", None)
+        if pending_queue:
+            # 处理队列中的所有文本项，避免竞态条件导致丢失
+            flushed_count = 0
+            while True:
+                try:
+                    pending_text = pending_queue.get_nowait()
+                    if pending_text:
+                        logger.bind(tag=TAG).info(f"句子语音生成成功： {pending_text}")
+                        self.tts_audio_queue.put((SentenceType.FIRST, [], pending_text))
+                        flushed_count += 1
+                except queue.Empty:
+                    break
+            return flushed_count > 0
         return False
 
     async def _start_monitor_tts_response(self):

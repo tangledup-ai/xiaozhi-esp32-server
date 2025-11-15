@@ -358,14 +358,21 @@ class TTSProvider(TTSProviderBase):
                                     self._process_before_stop_play_files()
                                     break
                                 else:
-                                    if self.conn.tts_MessageText:
-                                        logger.bind(tag=TAG).info(
-                                            f"句子语音生成成功： {self.conn.tts_MessageText}"
-                                        )
-                                        self.tts_audio_queue.put(
-                                            (SentenceType.FIRST, [], self.conn.tts_MessageText)
-                                        )
-                                        self.conn.tts_MessageText = None
+                                    # 处理队列中的所有文本项，避免竞态条件导致丢失
+                                    pending_queue = getattr(self.conn, "tts_MessageText", None)
+                                    if pending_queue:
+                                        while True:
+                                            try:
+                                                pending_text = pending_queue.get_nowait()
+                                                if pending_text:
+                                                    logger.bind(tag=TAG).info(
+                                                        f"句子语音生成成功： {pending_text}"
+                                                    )
+                                                    self.tts_audio_queue.put(
+                                                        (SentenceType.FIRST, [], pending_text)
+                                                    )
+                                            except queue.Empty:
+                                                break
                                     try:
                                         audio_bytes = base64.b64decode(audio_data)
                                         self.opus_encoder.encode_pcm_to_opus_stream(
