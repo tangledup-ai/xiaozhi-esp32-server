@@ -341,12 +341,9 @@ class TTSProviderBase(ABC):
                 if isinstance(audio_datas, bytes) and enqueue_audio is not None:
                     enqueue_audio.append(audio_datas)
 
+                # logger.info(f"TEXT SEND:{text}")
                 # 发送音频
-                future = asyncio.run_coroutine_threadsafe(
-                    sendAudioMessage(self.conn, sentence_type, audio_datas, text),
-                    self.conn.loop,
-                )
-                future.result()
+                self.send_audio_message(sentence_type, audio_datas, text)
 
                 # 记录输出和报告
                 if self.conn.max_output_size > 0 and text:
@@ -354,6 +351,13 @@ class TTSProviderBase(ABC):
 
             except Exception as e:
                 logger.bind(tag=TAG).error(f"audio_play_priority_thread: {text} {e}")
+    
+    def send_audio_message(self, sentence_type, audio_datas, text ):
+        future = asyncio.run_coroutine_threadsafe(
+                    sendAudioMessage(self.conn, sentence_type, audio_datas, text),
+                    self.conn.loop,
+                )
+        future.result()
 
     async def start_session(self, session_id):
         pass
