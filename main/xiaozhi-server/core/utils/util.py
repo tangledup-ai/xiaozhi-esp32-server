@@ -507,3 +507,7 @@ def validate_mcp_endpoint(mcp_endpoint: str) -> bool:
         return False
 
     return True
+
+
+def get_short_name(obj):
+    return obj.__class__.__module__.split('.')[-1]
