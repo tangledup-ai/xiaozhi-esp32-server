@@ -890,6 +890,20 @@ class ConnectionHandler:
                     sentence = self._extract_valid_tts_sentence(response_message)
                     if sentence:
                         self.tts_MessageText.put(sentence)
+        if (
+            not tool_call_flag
+            and self.tts is not None
+            and response_message
+        ):
+            full_text = "".join(response_message)
+            if self._tts_sentence_processed_chars < len(full_text):
+                remaining_text_raw = full_text[self._tts_sentence_processed_chars :]
+                remaining_text = textUtils.get_string_no_punctuation_or_emoji(
+                    remaining_text_raw
+                )
+                if remaining_text:
+                    self._tts_sentence_processed_chars = len(full_text)
+                    self.tts_MessageText.put(remaining_text)
         # 处理function call
         if tool_call_flag:
             bHasError = False
