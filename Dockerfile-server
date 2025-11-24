@@ -14,9 +14,9 @@ RUN micromamba install -y -n xiaozhi -c conda-forge \
         libopus && \
     micromamba clean --all --yes
 
-# 在新环境内使用 pip 安装 Python 依赖
-RUN micromamba run -n xiaozhi pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    micromamba run -n xiaozhi pip install --no-cache-dir -r requirements.txt --default-timeout=120 --retries 5
+# 在新环境内使用 mamba 安装 Python 依赖
+RUN micromamba install -y -n xiaozhi -c conda-forge --file requirements.txt && \
+    micromamba clean --all --yes
 
 # 第二阶段：生产镜像
 FROM mambaorg/micromamba:1.5.8
