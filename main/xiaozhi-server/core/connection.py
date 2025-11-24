@@ -917,6 +917,8 @@ class ConnectionHandler:
                     stream_releaser.add_sentence(remaining_text)
         
         while not stream_releaser.is_done() and ("stream" in get_short_name(self.tts)):
+            if self.client_abort:
+                break
             stream_sentence = stream_releaser.get_sentence()
             if stream_sentence:
                 self.tts.send_audio_message(SentenceType.FIRST, [], stream_sentence)
