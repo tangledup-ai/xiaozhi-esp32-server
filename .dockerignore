@@ -5,3 +5,8 @@ __pycache__
 Dockerfile
 tmp/
 data/
+main/xiaozhi-server/mysql/
+main/xiaozhi-server/data/
+main/xiaozhi-server/models/
+**/*.sock
+main/xiaozhi-server/tmp/
