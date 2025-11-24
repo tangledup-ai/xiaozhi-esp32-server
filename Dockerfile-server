@@ -1,37 +1,49 @@
-# 第一阶段：使用 mamba 安装 Python 依赖与系统工具
+# 第一阶段：构建阶段，使用 mamba 安装依赖和工具
 FROM mambaorg/micromamba:1.5.8 AS builder
+
+# 在构建阶段就激活环境，这样后续命令可以直接使用 `pip`
 ARG MAMBA_DOCKERFILE_ACTIVATE=1
 
 WORKDIR /app
 
-# 复制依赖清单
+# 复制 requirements.txt 到构建上下文
 COPY main/xiaozhi-server/requirements.txt .
 
-# 创建名为 xiaozhi 的环境，并通过 mamba 安装 Python、ffmpeg 与 libopus
-RUN micromamba install -y -n xiaozhi -c conda-forge \
+# 1. 创建名为 xiaozhi 的环境，并安装 Python、ffmpeg 和 libopus
+#    使用 `micromamba create` 来确保环境被正确初始化
+RUN micromamba create -y -n xiaozhi -c conda-forge \
         python=3.10 \
         ffmpeg \
         libopus && \
     micromamba clean --all --yes
 
-# 在新环境内使用 mamba 安装 Python 依赖
-RUN micromamba install -y -n xiaozhi -c conda-forge --file requirements.txt && \
-    micromamba clean --all --yes
+# 2. 激活新创建的环境，并为 pip 配置阿里云镜像源
+#    这些配置只会保存在当前的 `xiaozhi` 环境中
+RUN micromamba run -n xiaozhi pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && \
+    micromamba run -n xiaozhi pip config set global.trusted-host mirrors.aliyun.com && \
+    micromamba run -n xiaozhi pip config set global.timeout 120 && \
+    micromamba run -n xiaozhi pip config set install.retries 5
 
-# 第二阶段：生产镜像
+# 3. 使用 pip 安装 requirements.txt 中的 Python 依赖
+#    `micromamba run -n xiaozhi` 确保命令在指定环境中执行
+RUN micromamba run -n xiaozhi pip install --no-cache-dir -r requirements.txt
+
+# 第二阶段：生产阶段，构建轻量级镜像
 FROM mambaorg/micromamba:1.5.8
+
+# 在最终镜像中也激活 `xiaozhi` 环境
 ARG MAMBA_DOCKERFILE_ACTIVATE=1
 
 WORKDIR /opt/xiaozhi-esp32-server
 
-# 复制完整的 Python 环境
+# 从构建阶段复制完整的、已配置好的 `xiaozhi` 环境
 COPY --from=builder /opt/conda/envs/xiaozhi /opt/conda/envs/xiaozhi
 
-# 配置 PATH，使容器默认使用已安装的环境
+# 将环境的 bin 目录添加到 PATH，确保 `python`、`pip` 等命令可用
 ENV PATH="/opt/conda/envs/xiaozhi/bin:${PATH}"
 
-# 复制应用代码
+# 复制应用代码到工作目录
 COPY main/xiaozhi-server .
 
-# 启动应用
+# 容器启动命令
 CMD ["python", "app.py"]
