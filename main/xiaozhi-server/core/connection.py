@@ -845,7 +845,7 @@ class ConnectionHandler:
         content_arguments = ""
         self.client_abort = False
         emotion_flag = True
-        stream_releaser = StreamTextReleaser()
+        self.stream_releaser = StreamTextReleaser()
         for response in llm_responses:
             if self.client_abort:
                 break
@@ -892,12 +892,12 @@ class ConnectionHandler:
                         )
                     )
                     sentence = self._extract_valid_tts_sentence(response_message)
-                    stream_releaser.start()
+                    self.stream_releaser.start()
                     if sentence:
                         # self.tts_MessageText.put(sentence)
-                        stream_releaser.add_sentence(sentence)
+                        self.stream_releaser.add_sentence(sentence)
                     
-                    stream_sentence = stream_releaser.get_sentence()
+                    stream_sentence = self.stream_releaser.get_sentence()
                     if stream_sentence and ("stream" in get_short_name(self.tts)):
                         self.tts.send_audio_message(SentenceType.FIRST, [], stream_sentence)
         if (
@@ -914,12 +914,12 @@ class ConnectionHandler:
                 if remaining_text:
                     self._tts_sentence_processed_chars = len(full_text)
                     # self.tts_MessageText.put(remaining_text)
-                    stream_releaser.add_sentence(remaining_text)
+                    self.stream_releaser.add_sentence(remaining_text)
         
-        while not stream_releaser.is_done() and ("stream" in get_short_name(self.tts)):
+        while not self.stream_releaser.is_done() and ("stream" in get_short_name(self.tts)):
             if self.client_abort:
                 break
-            stream_sentence = stream_releaser.get_sentence()
+            stream_sentence = self.stream_releaser.get_sentence()
             if stream_sentence:
                 self.tts.send_audio_message(SentenceType.FIRST, [], stream_sentence)
             
@@ -1193,6 +1193,9 @@ class ConnectionHandler:
                         q.get_nowait()
                     except queue.Empty:
                         break
+            
+            if hasattr(self, "stream_releaser"):
+                self.stream_releaser.reset()
 
             self.logger.bind(tag=TAG).debug(
                 f"清理结束: TTS队列大小={self.tts.tts_text_queue.qsize()}, 音频队列大小={self.tts.tts_audio_queue.qsize()}"
