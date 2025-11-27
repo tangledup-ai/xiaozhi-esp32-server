@@ -7,6 +7,7 @@ from concurrent.futures import Future
 from core.utils.util import get_vision_url, sanitize_tool_name
 from core.utils.auth import AuthToken
 from config.logger import setup_logging
+from .mcp_storage import save_device_tools
 
 TAG = __name__
 logger = setup_logging()
@@ -200,6 +201,19 @@ async def handle_mcp_message(conn, mcp_client: MCPClient, payload: dict):
                 else:
                     await mcp_client.set_ready(True)
                     logger.bind(tag=TAG).info("所有工具已获取，MCP客户端准备就绪")
+
+                    # 在设备端首次获取到完整工具列表时，持久化这些 self_* 工具，
+                    # 以便 mcp_tool_server 等独立进程可以恢复相同的工具集合。
+                    try:
+                        tools_list = list(mcp_client.tools.values())
+                        save_device_tools(tools_list)
+                        logger.bind(tag=TAG).warning(
+                            f"[MCP-TOOLS-PERSIST] 已保存设备端 MCP 工具 {len(tools_list)} 个到本地，用于后续 MCP 服务器恢复"
+                        )
+                    except Exception as e:
+                        logger.bind(tag=TAG).error(
+                            f"[MCP-TOOLS-PERSIST] 保存设备端 MCP 工具失败: {e}"
+                        )
 
                     # 刷新工具缓存，确保MCP工具被包含在函数列表中
                     if hasattr(conn, "func_handler") and conn.func_handler:
