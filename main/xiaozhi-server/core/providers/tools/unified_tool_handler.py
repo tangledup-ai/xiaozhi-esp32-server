@@ -59,8 +59,9 @@ class UnifiedToolHandler:
             # 自动导入插件模块
             auto_import_modules("plugins_func.functions")
 
-            # 初始化服务端MCP
-            await self.server_mcp_executor.initialize()
+            # 初始化服务端MCP（如果已启用）
+            if hasattr(self, "server_mcp_executor") and self.server_mcp_executor:
+                await self.server_mcp_executor.initialize()
 
             # 初始化MCP接入点
             await self._initialize_mcp_endpoint()
@@ -221,7 +222,9 @@ class UnifiedToolHandler:
     async def cleanup(self):
         """清理资源"""
         try:
-            await self.server_mcp_executor.cleanup()
+            # 清理服务端MCP（如果已启用）
+            if hasattr(self, "server_mcp_executor") and self.server_mcp_executor:
+                await self.server_mcp_executor.cleanup()
 
             # 清理MCP接入点连接
             if (

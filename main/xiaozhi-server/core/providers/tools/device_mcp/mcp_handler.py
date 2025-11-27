@@ -3,97 +3,14 @@
 import json
 import asyncio
 import re
-from concurrent.futures import Future
 from core.utils.util import get_vision_url, sanitize_tool_name
 from core.utils.auth import AuthToken
 from config.logger import setup_logging
+from .mcp_storage import save_device_tools
+from .mcp_client import MCPClient
 
 TAG = __name__
 logger = setup_logging()
-
-
-class MCPClient:
-    """设备端MCP客户端，用于管理MCP状态和工具"""
-
-    def __init__(self):
-        self.tools = {}  # sanitized_name -> tool_data
-        self.name_mapping = {}
-        self.ready = False
-        self.call_results = {}  # To store Futures for tool call responses
-        self.next_id = 1
-        self.lock = asyncio.Lock()
-        self._cached_available_tools = None  # Cache for get_available_tools
-
-    def has_tool(self, name: str) -> bool:
-        return name in self.tools
-
-    def get_available_tools(self) -> list:
-        # Check if the cache is valid
-        if self._cached_available_tools is not None:
-            return self._cached_available_tools
-
-        # If cache is not valid, regenerate the list
-        result = []
-        for tool_name, tool_data in self.tools.items():
-            function_def = {
-                "name": tool_name,
-                "description": tool_data["description"],
-                "parameters": {
-                    "type": tool_data["inputSchema"].get("type", "object"),
-                    "properties": tool_data["inputSchema"].get("properties", {}),
-                    "required": tool_data["inputSchema"].get("required", []),
-                },
-            }
-            result.append({"type": "function", "function": function_def})
-
-        self._cached_available_tools = result  # Store the generated list in cache
-        return result
-
-    async def is_ready(self) -> bool:
-        async with self.lock:
-            return self.ready
-
-    async def set_ready(self, status: bool):
-        async with self.lock:
-            self.ready = status
-
-    async def add_tool(self, tool_data: dict):
-        async with self.lock:
-            sanitized_name = sanitize_tool_name(tool_data["name"])
-            self.tools[sanitized_name] = tool_data
-            self.name_mapping[sanitized_name] = tool_data["name"]
-            self._cached_available_tools = (
-                None  # Invalidate the cache when a tool is added
-            )
-
-    async def get_next_id(self) -> int:
-        async with self.lock:
-            current_id = self.next_id
-            self.next_id += 1
-            return current_id
-
-    async def register_call_result_future(self, id: int, future: Future):
-        async with self.lock:
-            self.call_results[id] = future
-
-    async def resolve_call_result(self, id: int, result: any):
-        async with self.lock:
-            if id in self.call_results:
-                future = self.call_results.pop(id)
-                if not future.done():
-                    future.set_result(result)
-
-    async def reject_call_result(self, id: int, exception: Exception):
-        async with self.lock:
-            if id in self.call_results:
-                future = self.call_results.pop(id)
-                if not future.done():
-                    future.set_exception(exception)
-
-    async def cleanup_call_result(self, id: int):
-        async with self.lock:
-            if id in self.call_results:
-                self.call_results.pop(id)
 
 
 async def send_mcp_message(conn, payload: dict):
@@ -200,6 +117,19 @@ async def handle_mcp_message(conn, mcp_client: MCPClient, payload: dict):
                 else:
                     await mcp_client.set_ready(True)
                     logger.bind(tag=TAG).info("所有工具已获取，MCP客户端准备就绪")
+
+                    # 在设备端首次获取到完整工具列表时，持久化这些 self_* 工具，
+                    # 以便 mcp_tool_server 等独立进程可以恢复相同的工具集合。
+                    try:
+                        tools_list = list(mcp_client.tools.values())
+                        save_device_tools(tools_list)
+                        logger.bind(tag=TAG).warning(
+                            f"[MCP-TOOLS-PERSIST] 已保存设备端 MCP 工具 {len(tools_list)} 个到本地，用于后续 MCP 服务器恢复"
+                        )
+                    except Exception as e:
+                        logger.bind(tag=TAG).error(
+                            f"[MCP-TOOLS-PERSIST] 保存设备端 MCP 工具失败: {e}"
+                        )
 
                     # 刷新工具缓存，确保MCP工具被包含在函数列表中
                     if hasattr(conn, "func_handler") and conn.func_handler:

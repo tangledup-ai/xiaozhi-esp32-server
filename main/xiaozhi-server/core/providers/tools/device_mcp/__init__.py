@@ -9,6 +9,7 @@ from .mcp_handler import (
     call_mcp_tool,
 )
 from .mcp_executor import DeviceMCPExecutor
+from .proxy_executor import DeviceMCPProxyExecutor
 
 __all__ = [
     "MCPClient",
@@ -18,4 +19,5 @@ __all__ = [
     "send_mcp_tools_list_request",
     "call_mcp_tool",
     "DeviceMCPExecutor",
+    "DeviceMCPProxyExecutor",
 ]

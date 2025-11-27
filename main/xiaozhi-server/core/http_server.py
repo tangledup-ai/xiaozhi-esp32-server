@@ -3,16 +3,24 @@ from aiohttp import web
 from config.logger import setup_logging
 from core.api.ota_handler import OTAHandler
 from core.api.vision_handler import VisionHandler
+from core.api.tool_proxy_handler import ToolProxyHandler
 
 TAG = __name__
 
 
 class SimpleHttpServer:
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, ws_server=None):
         self.config = config
         self.logger = setup_logging()
         self.ota_handler = OTAHandler(config)
         self.vision_handler = VisionHandler(config)
+        self.tool_proxy_handler = ToolProxyHandler(config, ws_server)
+        self.ws_server = ws_server
+
+    def set_ws_server(self, ws_server):
+        """设置WebSocket服务器引用"""
+        self.ws_server = ws_server
+        self.tool_proxy_handler.set_ws_server(ws_server)
 
     def _get_websocket_url(self, local_ip: str, port: int) -> str:
         """获取websocket地址
@@ -56,6 +64,10 @@ class SimpleHttpServer:
                     web.get("/mcp/vision/explain", self.vision_handler.handle_get),
                     web.post("/mcp/vision/explain", self.vision_handler.handle_post),
                     web.options("/mcp/vision/explain", self.vision_handler.handle_post),
+                    # 内部工具代理接口 - 用于MCP工具服务器代理调用设备端工具
+                    web.post("/internal/tool/call", self.tool_proxy_handler.handle_post),
+                    web.options("/internal/tool/call", self.tool_proxy_handler.handle_options),
+                    web.get("/internal/devices", self.tool_proxy_handler.handle_list_devices),
                 ]
             )
 

@@ -1,8 +1,9 @@
 """服务端插件工具执行器"""
 
-from typing import Dict, Any
+from typing import Dict, Any, List
 from ..base import ToolType, ToolDefinition, ToolExecutor
 from plugins_func.register import all_function_registry, Action, ActionResponse
+from config.logger import setup_logging
 
 
 class ServerPluginExecutor(ToolExecutor):
@@ -11,6 +12,7 @@ class ServerPluginExecutor(ToolExecutor):
     def __init__(self, conn):
         self.conn = conn
         self.config = conn.config
+        self.logger = setup_logging()
 
     async def execute(
         self, conn, tool_name: str, arguments: Dict[str, Any]
@@ -53,10 +55,29 @@ class ServerPluginExecutor(ToolExecutor):
         # 获取必要的函数
         necessary_functions = ["handle_exit_intent", "get_lunar"]
 
-        # 获取配置中的函数
-        config_functions = self.config["Intent"][
-            self.config["selected_module"]["Intent"]
-        ].get("functions", [])
+        config_functions: List[str] = []
+        intent_config = self.config.get("Intent") or {}
+        selected_intent = (
+            self.config.get("selected_module") or {}
+        ).get("Intent")
+
+        if (
+            selected_intent
+            and isinstance(intent_config, dict)
+            and selected_intent in intent_config
+        ):
+            config_functions = intent_config[selected_intent].get("functions", [])
+            if not isinstance(config_functions, list):
+                try:
+                    config_functions = list(config_functions)
+                except TypeError:
+                    config_functions = []
+        else:
+            # 配置缺失时回退到所有已注册函数，避免直接报错
+            self.logger.warning(
+                "Intent 配置缺失或未选择，回退到暴露所有插件函数。"
+            )
+            config_functions = list(all_function_registry.keys())
 
         # 转换为列表
         if not isinstance(config_functions, list):
