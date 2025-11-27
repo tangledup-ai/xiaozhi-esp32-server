@@ -20,6 +20,9 @@ from config.settings import load_config
 from core.connection import ConnectionHandler
 from core.providers.tools.unified_tool_handler import UnifiedToolHandler
 from core.utils.modules_initialize import initialize_modules
+from core.providers.tools.device_mcp.mcp_storage import load_device_tools
+from core.providers.tools.device_mcp.proxy_executor import DeviceMCPProxyExecutor
+from core.providers.tools.base import ToolType
 from mcp.server.fastmcp import FastMCP
 from mcp.types import Content, TextContent, Tool as MCPTool
 from plugins_func.register import ActionResponse
@@ -147,6 +150,74 @@ async def _build_connection(
     conn.func_handler = UnifiedToolHandler(conn)
     await conn.func_handler._initialize()
     conn.func_handler.tool_manager.refresh_tools()
+
+    # 如果之前有设备通过 MCP 客户端上报过 self_* 工具，
+    # 则在 MCP 工具服务器中恢复这些设备端 MCP 工具。
+    device_tools = load_device_tools()
+    if device_tools:
+        try:
+            # 将保存的工具直接注入到 device_mcp 执行器使用的 mcp_client 结构中
+            # 注意这里不需要真正的 websocket，只是为了让 ToolManager 能够看到这些工具。
+            from core.providers.tools.device_mcp.mcp_client import MCPClient
+
+            mcp_client = MCPClient()
+            for tool in device_tools:
+                # 逐个恢复工具
+                fut = asyncio.ensure_future(mcp_client.add_tool(tool))
+                await fut
+
+            conn.mcp_client = mcp_client
+            await mcp_client.set_ready(True)
+
+            # 构建代理URL - 使用主服务器的HTTP端口
+            server_config = config.get("server", {})
+            proxy_host = server_config.get("ip", "127.0.0.1")
+            # 如果服务器绑定到0.0.0.0，使用127.0.0.1进行本地连接
+            if proxy_host == "0.0.0.0":
+                proxy_host = "127.0.0.1"
+            # 支持通过环境变量或配置覆盖代理主机（用于Docker环境）
+            import os
+            proxy_host = os.environ.get("TOOL_PROXY_HOST", server_config.get("tool_proxy_host", proxy_host))
+            proxy_port = int(server_config.get("http_port", 8003))
+            proxy_url = f"http://{proxy_host}:{proxy_port}"
+            
+            # 获取内部API密钥（优先用于Docker环境）
+            internal_api_key = os.environ.get(
+                "INTERNAL_API_KEY", 
+                server_config.get("internal_api_key", "")
+            )
+            
+            # 获取认证token（如果配置了auth_key且没有内部API密钥）
+            auth_token = None
+            if not internal_api_key:
+                auth_key = server_config.get("auth_key", "")
+                if auth_key:
+                    from core.utils.auth import AuthToken
+                    auth = AuthToken(auth_key)
+                    auth_token = auth.generate_token("mcp_tool_server")
+
+            # 创建代理执行器替换原有的设备MCP执行器
+            proxy_executor = DeviceMCPProxyExecutor(
+                conn, proxy_url, auth_token, internal_api_key
+            )
+            
+            # 替换ToolManager中的DEVICE_MCP执行器为代理执行器
+            conn.func_handler.tool_manager.register_executor(
+                ToolType.DEVICE_MCP, proxy_executor
+            )
+
+            # 让 ToolManager 重新发现这些设备端 MCP 工具
+            conn.func_handler.tool_manager.refresh_tools()
+            logger.info(
+                "[MCP-TOOLS-RESTORE] 已从本地恢复设备端 MCP 工具 %d 个，将通过 %s 代理调用",
+                len(device_tools),
+                proxy_url,
+            )
+            # 重新输出当前支持的函数列表（包含恢复的设备端工具）
+            conn.func_handler.current_support_functions()
+        except Exception as exc:
+            logger.error(f"[MCP-TOOLS-RESTORE] 恢复设备端 MCP 工具失败: {exc}")
+
     return conn
 
 
