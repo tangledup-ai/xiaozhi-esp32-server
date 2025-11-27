@@ -698,30 +698,24 @@ class ConnectionHandler:
                 self.logger.bind(tag=TAG).info("使用主LLM作为意图识别模型")
 
     def _initialize_intent(self):
-        if self.intent is None:
-            return
-        self.intent_type = self.config["Intent"][
-            self.config["selected_module"]["Intent"]
-        ]["type"]
-        if self.intent_type == "function_call" or self.intent_type == "intent_llm":
-            self.load_function_plugin = True
         """初始化意图识别模块"""
         # 获取意图识别配置
-        intent_config = self.config["Intent"]
-        intent_type = self.config["Intent"][self.config["selected_module"]["Intent"]][
-            "type"
-        ]
+        intent_config = self.config.get("Intent", {})
+        selected_intent = self.config.get("selected_module", {}).get("Intent", "")
+        
+        if selected_intent and selected_intent in intent_config:
+            self.intent_type = intent_config[selected_intent].get("type", "nointent")
+        else:
+            self.intent_type = "nointent"
+        
+        if self.intent_type == "function_call" or self.intent_type == "intent_llm":
+            self.load_function_plugin = True
 
-        # 如果使用 nointent，直接返回
-        if intent_type == "nointent":
-            return
-        # 使用 intent_llm 模式
-        elif intent_type == "intent_llm":
-            intent_llm_name = intent_config[self.config["selected_module"]["Intent"]][
-                "llm"
-            ]
+        # 使用 intent_llm 模式时，配置LLM
+        if self.intent is not None and self.intent_type == "intent_llm":
+            intent_llm_name = intent_config.get(selected_intent, {}).get("llm", "")
 
-            if intent_llm_name and intent_llm_name in self.config["LLM"]:
+            if intent_llm_name and intent_llm_name in self.config.get("LLM", {}):
                 # 如果配置了专用LLM，则创建独立的LLM实例
                 from core.utils import llm as llm_utils
 
@@ -734,12 +728,12 @@ class ConnectionHandler:
                     f"为意图识别创建了专用LLM: {intent_llm_name}, 类型: {intent_llm_type}"
                 )
                 self.intent.set_llm(intent_llm)
-            else:
+            elif self.llm:
                 # 否则使用主LLM
                 self.intent.set_llm(self.llm)
                 self.logger.bind(tag=TAG).info("使用主LLM作为意图识别模型")
 
-        """加载统一工具处理器"""
+        # 加载统一工具处理器（无论intent类型如何都需要加载，以支持设备端MCP工具）
         self.func_handler = UnifiedToolHandler(self)
 
         # 异步初始化工具处理器
