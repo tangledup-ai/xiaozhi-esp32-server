@@ -3,13 +3,20 @@
 import asyncio
 from config.logger import setup_logging
 from .iot_descriptor import IotDescriptor
+from .iot_storage import save_descriptors
 
 TAG = __name__
 logger = setup_logging()
 
 
 async def handleIotDescriptors(conn, descriptors):
-    """处理物联网描述"""
+    """处理物联网描述
+
+    - 在 websocket 连接建立后，由设备上报 descriptors
+    - 为当前连接构建 `iot_descriptors`
+    - 将 IoT 工具注册到统一工具处理器
+    - 将最新的 descriptors 持久化到磁盘，供 MCP 工具服务器等进程复用
+    """
     wait_max_time = 5
     while (
         not hasattr(conn, "func_handler")
@@ -57,6 +64,12 @@ async def handleIotDescriptors(conn, descriptors):
     if functions_changed and hasattr(conn, "func_handler"):
         # 注册IoT工具到统一工具处理器
         await conn.func_handler.register_iot_tools(descriptors)
+
+        # 持久化最新的 descriptors，供 MCP 工具服务器等独立进程复用
+        try:
+            save_descriptors(descriptors)
+        except Exception as e:
+            logger.bind(tag=TAG).error(f"保存 IoT 描述符失败: {e}")
 
         conn.func_handler.current_support_functions()
 
