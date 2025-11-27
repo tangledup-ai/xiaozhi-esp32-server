@@ -178,4 +178,5 @@ async def main():
 
 
 if __name__ == "__main__":
+    # NOTE: sample call python test/test_mcp_langchain.py --call self_screen_set_brightness --args '{"brightness": 50}'
     asyncio.run(main())
