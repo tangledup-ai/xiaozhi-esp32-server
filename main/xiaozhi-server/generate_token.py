@@ -20,7 +20,7 @@ from config.settings import load_config
 def main():
     parser = argparse.ArgumentParser(description="生成认证Token")
     parser.add_argument("--device-id", default="test-device", help="设备ID (默认: test-device)")
-    parser.add_argument("--auth-key", help="认证密钥 (如果不提供，将从配置中读取)")
+    parser.add_argument("--auth-key", help="认证密钥 (如果不提供，将从配置中读取); see 'secret' in main/xiaozhi-server/data/.config.yaml")
     parser.add_argument(
         "--expire-hours",
         type=float,
