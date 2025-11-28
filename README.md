@@ -1,3 +1,14 @@
+# New Notes
+To enable hardware tools usage for other backends, assuming you are at `main/xiaozhi-server`:
+- Run `app.py` as usual
+- Run `core/mcp_tool_server.py` for local
+- Run `core/mcp_tool_server.py --host 0.0.0.0 --port 8805` for external access
+  - NOTE: you need to generate a token a token using `generate_token.py` for external access. the `--auth-key` is the `secret` in `data/.config.yaml`.
+  - For sample usage of the server externally :
+    - `main/xiaozhi-server/test/test_tool_proxy.py`
+    - `main/xiaozhi-server/test/test_mcp_langchain.py`
+
+# ORIGINAL README BELOW
 [![Banners](docs/images/banner1.png)](https://github.com/xinnan-tech/xiaozhi-esp32-server)
 
 <h1 align="center">小智后端服务xiaozhi-esp32-server</h1>
