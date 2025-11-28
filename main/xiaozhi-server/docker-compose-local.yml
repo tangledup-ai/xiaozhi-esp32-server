@@ -19,6 +19,8 @@ services:
       - "8000:8000"
       # http服务的端口，用于视觉分析接口
       - "8003:8003"
+      # MCP 工具服务端口
+      - "8805:8805"
     security_opt:
       - seccomp:unconfined
     environment:
