@@ -13,6 +13,8 @@
   --list            仅列出工具
   --call TOOL       调用指定工具
   --args JSON       工具参数 (JSON格式)
+  --token TOKEN     认证Token (可选，用于需要认证的MCP服务器)
+  --native          使用原生MCP客户端而非LangChain
 """
 
 import argparse
@@ -25,7 +27,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-async def test_with_langchain_mcp(url: str, list_only: bool = True, tool_name: str = None, tool_args: dict = None):
+async def test_with_langchain_mcp(url: str, list_only: bool = True, tool_name: str = None, tool_args: dict = None, auth_token: str = None):
     """使用langchain-mcp-adapters测试MCP服务器"""
     try:
         from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -41,6 +43,12 @@ async def test_with_langchain_mcp(url: str, list_only: bool = True, tool_name: s
             "transport": "sse"
         }
     }
+    
+    # 如果提供了认证token，添加到配置中
+    if auth_token:
+        mcp_config["xiaozhi"]["headers"] = {
+            "Authorization": f"Bearer {auth_token}"
+        }
     
     print(f">>> 连接到MCP服务器: {url}")
     print(f"    配置: {json.dumps(mcp_config, indent=2)}")
@@ -93,7 +101,7 @@ async def test_with_langchain_mcp(url: str, list_only: bool = True, tool_name: s
         return False
 
 
-async def test_with_mcp_client(url: str, list_only: bool = True, tool_name: str = None, tool_args: dict = None):
+async def test_with_mcp_client(url: str, list_only: bool = True, tool_name: str = None, tool_args: dict = None, auth_token: str = None):
     """使用原生mcp客户端测试MCP服务器"""
     try:
         from mcp import ClientSession
@@ -105,8 +113,13 @@ async def test_with_mcp_client(url: str, list_only: bool = True, tool_name: str 
     
     print(f">>> 连接到MCP服务器 (原生客户端): {url}")
     
+    # 准备headers
+    headers = {}
+    if auth_token:
+        headers["Authorization"] = f"Bearer {auth_token}"
+    
     try:
-        async with sse_client(url) as (read_stream, write_stream):
+        async with sse_client(url, headers=headers if headers else None) as (read_stream, write_stream):
             async with ClientSession(read_stream, write_stream) as session:
                 # 初始化
                 await session.initialize()
@@ -151,6 +164,7 @@ async def main():
     parser.add_argument("--call", dest="tool_name", help="调用指定工具")
     parser.add_argument("--args", dest="tool_args", help="工具参数 (JSON格式)")
     parser.add_argument("--native", action="store_true", help="使用原生MCP客户端而非LangChain")
+    parser.add_argument("--token", help="认证Token (可选)")
     
     args = parser.parse_args()
     
@@ -167,11 +181,13 @@ async def main():
     
     print("=== MCP工具测试 ===")
     print(f"服务器URL: {url}")
+    if args.token:
+        print(f"使用认证Token: {args.token[:20]}...")
     
     if args.native:
-        success = await test_with_mcp_client(url, list_only, args.tool_name, tool_args)
+        success = await test_with_mcp_client(url, list_only, args.tool_name, tool_args, args.token)
     else:
-        success = await test_with_langchain_mcp(url, list_only, args.tool_name, tool_args)
+        success = await test_with_langchain_mcp(url, list_only, args.tool_name, tool_args, args.token)
     
     print("\n=== 测试完成 ===")
     sys.exit(0 if success else 1)
