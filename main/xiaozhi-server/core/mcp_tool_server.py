@@ -394,5 +394,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # NOTE: to enable external run as:
+    # python core/mcp_tool_server.py --host 0.0.0.0 --port 8805
     main()
 
