@@ -76,14 +76,15 @@ class AuthToken:
         plaintext = decryptor.update(ciphertext) + decryptor.finalize()
         return json.loads(plaintext.decode())
 
-    def generate_token(self, device_id: str) -> str:
+    def generate_token(self, device_id: str, expire_hours: float = 1.0) -> str:
         """
         生成JWT token
         :param device_id: 设备ID
+        :param expire_hours: 过期时间（小时），默认1小时。可以是小数，如0.5表示30分钟，24表示1天
         :return: JWT token字符串
         """
-        # 设置过期时间为1小时后
-        expire_time = datetime.now(timezone.utc) + timedelta(hours=1)
+        # 设置过期时间
+        expire_time = datetime.now(timezone.utc) + timedelta(hours=expire_hours)
 
         # 创建原始payload
         payload = {"device_id": device_id, "exp": expire_time.timestamp()}
