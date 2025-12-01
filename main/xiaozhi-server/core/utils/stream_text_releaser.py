@@ -31,7 +31,7 @@ class StreamTextReleaser:
         self.text_queue = deque()
 
         self.ST_DELTA = 0.   # estimated time that xiaozhi starts speaking
-        self.AVG_WORD_PER_SEC = 0.19 # sec/word  ; avg is 0.224; choose something slightly faster to feel smoother
+        self.AVG_WORD_PER_SEC = 0.21 # sec/word  ; avg is 0.224; choose something slightly faster to feel smoother
 
     
     def start(self):
