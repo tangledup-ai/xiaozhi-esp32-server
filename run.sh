@@ -69,13 +69,25 @@ echo
 # ===================================================================== #
 #  7️⃣  Start Python backend (Xiaozhi server)
 # ===================================================================== #
-#(
-#  cd "$SERVER_DIR"
-#  source "$CONDA_INIT_PATH"
-#  conda activate xiaozhi
-#  echo "▶️  Starting Xiaozhi Python Server..."
-#  python app.py > "$SERVER_LOG" 2>&1
-#) &
+(
+  cd "$SERVER_DIR"
+  source "$CONDA_INIT_PATH"
+  conda activate xiaozhi
+  echo "▶️  Starting Xiaozhi Python Server..."
+  python app.py > "$SERVER_LOG" 2>&1
+) &
+
+# ===================================================================== #
+#  7️⃣b  Start MCP Tool Server
+# ===================================================================== #
+MCP_LOG="$LOG_DIR/mcp-tool-server.log"
+(
+  cd "$SERVER_DIR"
+  source "$CONDA_INIT_PATH"
+  conda activate xiaozhi
+  echo "▶️  Starting MCP Tool Server..."
+  python core/mcp_tool_server.py --host 0.0.0.0 --port 8805 > "$MCP_LOG" 2>&1
+) &
 
 # ===================================================================== #
 #  8️⃣  Wait for all background processes to finish
