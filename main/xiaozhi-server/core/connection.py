@@ -220,7 +220,7 @@ class ConnectionHandler:
             self.timeout_task = asyncio.create_task(self._check_timeout())
 
             self.welcome_msg = self.config["xiaozhi"]
-            self.welcome_msg["session_id"] = self.session_id
+            self.welcome_msg["session_id"] = f"{self.session_id}_{self.device_id}"
 
             # 获取差异化配置
             self._initialize_private_config()
@@ -814,7 +814,7 @@ class ConnectionHandler:
             if self.intent_type == "function_call" and functions is not None:
                 # 使用支持functions的streaming接口
                 llm_responses = self.llm.response_with_functions(
-                    self.session_id,
+                    f"{self.session_id}_{self.device_id}",
                     self.dialogue.get_llm_dialogue_with_memory(
                         memory_str, self.config.get("voiceprint", {})
                     ),
@@ -822,7 +822,7 @@ class ConnectionHandler:
                 )
             else:
                 llm_responses = self.llm.response(
-                    self.session_id,
+                    f"{self.session_id}_{self.device_id}",
                     self.dialogue.get_llm_dialogue_with_memory(
                         memory_str, self.config.get("voiceprint", {})
                     ),
@@ -894,6 +894,8 @@ class ConnectionHandler:
                     stream_sentence = self.stream_releaser.get_sentence()
                     if stream_sentence and ("stream" in get_short_name(self.tts)):
                         self.tts.send_audio_message(SentenceType.FIRST, [], stream_sentence)
+
+        logger.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! out of response loop !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")                        
         if (
             not tool_call_flag
             and self.tts is not None
