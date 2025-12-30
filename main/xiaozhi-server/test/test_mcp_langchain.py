@@ -13,6 +13,7 @@
   --list            仅列出工具
   --call TOOL       调用指定工具
   --args JSON       工具参数 (JSON格式)
+  --device-id ID    目标设备ID (可选，不指定则使用第一个可用设备)
   --token TOKEN     认证Token (可选，用于需要认证的MCP服务器)
   --native          使用原生MCP客户端而非LangChain
 """
@@ -27,7 +28,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-async def test_with_langchain_mcp(url: str, list_only: bool = True, tool_name: str = None, tool_args: dict = None, auth_token: str = None):
+async def test_with_langchain_mcp(url: str, list_only: bool = True, tool_name: str = None, tool_args: dict = None, auth_token: str = None, device_id: str = None):
     """使用langchain-mcp-adapters测试MCP服务器"""
     try:
         from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -74,7 +75,13 @@ async def test_with_langchain_mcp(url: str, list_only: bool = True, tool_name: s
         # 调用指定工具
         if tool_name:
             print(f"\n>>> 调用工具: {tool_name}")
-            print(f"    参数: {json.dumps(tool_args or {}, ensure_ascii=False)}")
+            # Prepare arguments, including device_id if specified
+            final_args = dict(tool_args) if tool_args else {}
+            if device_id:
+                final_args["device_id"] = device_id
+            print(f"    参数: {json.dumps(final_args, ensure_ascii=False)}")
+            if device_id:
+                print(f"    目标设备: {device_id}")
             
             # 查找工具
             target_tool = None
@@ -88,7 +95,7 @@ async def test_with_langchain_mcp(url: str, list_only: bool = True, tool_name: s
                 return False
             
             # 调用工具
-            result = await target_tool.ainvoke(tool_args or {})
+            result = await target_tool.ainvoke(final_args)
             print(f"    结果: {result}")
             return True
         
@@ -101,7 +108,7 @@ async def test_with_langchain_mcp(url: str, list_only: bool = True, tool_name: s
         return False
 
 
-async def test_with_mcp_client(url: str, list_only: bool = True, tool_name: str = None, tool_args: dict = None, auth_token: str = None):
+async def test_with_mcp_client(url: str, list_only: bool = True, tool_name: str = None, tool_args: dict = None, auth_token: str = None, device_id: str = None):
     """使用原生mcp客户端测试MCP服务器"""
     try:
         from mcp import ClientSession
@@ -141,9 +148,15 @@ async def test_with_mcp_client(url: str, list_only: bool = True, tool_name: str 
                 # 调用指定工具
                 if tool_name:
                     print(f"\n>>> 调用工具: {tool_name}")
-                    print(f"    参数: {json.dumps(tool_args or {}, ensure_ascii=False)}")
+                    # Prepare arguments, including device_id if specified
+                    final_args = dict(tool_args) if tool_args else {}
+                    if device_id:
+                        final_args["device_id"] = device_id
+                    print(f"    参数: {json.dumps(final_args, ensure_ascii=False)}")
+                    if device_id:
+                        print(f"    目标设备: {device_id}")
                     
-                    result = await session.call_tool(tool_name, tool_args or {})
+                    result = await session.call_tool(tool_name, final_args)
                     print(f"    结果: {result}")
                     return True
                 
@@ -163,6 +176,7 @@ async def main():
     parser.add_argument("--list", action="store_true", help="仅列出工具")
     parser.add_argument("--call", dest="tool_name", help="调用指定工具")
     parser.add_argument("--args", dest="tool_args", help="工具参数 (JSON格式)")
+    parser.add_argument("--device-id", help="目标设备ID (可选，不指定则使用第一个可用设备)")
     parser.add_argument("--native", action="store_true", help="使用原生MCP客户端而非LangChain")
     parser.add_argument("--token", help="认证Token (可选)")
     
@@ -185,9 +199,9 @@ async def main():
         print(f"使用认证Token: {args.token[:20]}...")
     
     if args.native:
-        success = await test_with_mcp_client(url, list_only, args.tool_name, tool_args, args.token)
+        success = await test_with_mcp_client(url, list_only, args.tool_name, tool_args, args.token, args.device_id)
     else:
-        success = await test_with_langchain_mcp(url, list_only, args.tool_name, tool_args, args.token)
+        success = await test_with_langchain_mcp(url, list_only, args.tool_name, tool_args, args.token, args.device_id)
     
     print("\n=== 测试完成 ===")
     sys.exit(0 if success else 1)

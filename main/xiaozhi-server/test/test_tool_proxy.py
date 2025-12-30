@@ -13,6 +13,7 @@
   --volume N        设置音量 (0-100)
   --status          获取设备状态
   --list-devices    列出已连接的设备
+  --device-id ID    目标设备ID (可选，不指定则使用第一个可用设备)
 """
 
 import argparse
@@ -27,7 +28,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import aiohttp
 
 
-async def call_tool(base_url: str, tool_name: str, arguments: dict, auth_token: str = None, internal_key: str = None):
+async def call_tool(base_url: str, tool_name: str, arguments: dict, auth_token: str = None, internal_key: str = None, device_id: str = None):
     """调用工具代理API"""
     url = f"{base_url}/internal/tool/call"
     headers = {"Content-Type": "application/json"}
@@ -41,8 +42,14 @@ async def call_tool(base_url: str, tool_name: str, arguments: dict, auth_token: 
         "arguments": arguments
     }
     
+    # Include device_id in payload if specified
+    if device_id:
+        payload["device_id"] = device_id
+    
     print(f"\n>>> 调用工具: {tool_name}")
     print(f"    参数: {json.dumps(arguments, ensure_ascii=False)}")
+    if device_id:
+        print(f"    目标设备: {device_id}")
     
     async with aiohttp.ClientSession() as session:
         async with session.post(url, json=payload, headers=headers) as response:
@@ -79,6 +86,7 @@ async def main():
     parser.add_argument("--volume", type=int, help="设置音量 (0-100)")
     parser.add_argument("--status", action="store_true", help="获取设备状态")
     parser.add_argument("--list-devices", action="store_true", help="列出已连接的设备")
+    parser.add_argument("--device-id", default=None, help="目标设备ID (可选，不指定则使用第一个可用设备)")
     parser.add_argument("--token", default=None, help="JWT认证token (可选)")
     parser.add_argument("--internal-key", default=None, help="内部API密钥 (可选，用于Docker环境)")
     
@@ -100,7 +108,7 @@ async def main():
         
         # 获取设备状态
         if args.status or run_all:
-            await call_tool(base_url, "self_get_device_status", {}, args.token, internal_key)
+            await call_tool(base_url, "self_get_device_status", {}, args.token, internal_key, args.device_id)
         
         # 设置亮度
         if args.brightness is not None:
@@ -109,7 +117,8 @@ async def main():
                 "self_screen_set_brightness", 
                 {"brightness": args.brightness},
                 args.token,
-                internal_key
+                internal_key,
+                args.device_id
             )
         elif run_all:
             # 默认测试：设置亮度为50
@@ -119,7 +128,8 @@ async def main():
                 "self_screen_set_brightness",
                 {"brightness": 50},
                 args.token,
-                internal_key
+                internal_key,
+                args.device_id
             )
         
         # 设置音量
@@ -129,7 +139,8 @@ async def main():
                 "self_audio_speaker_set_volume",
                 {"volume": args.volume},
                 args.token,
-                internal_key
+                internal_key,
+                args.device_id
             )
         
         print("\n=== 测试完成 ===")
