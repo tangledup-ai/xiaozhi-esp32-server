@@ -44,10 +44,18 @@ class DeviceMCPProxyExecutor(ToolExecutor):
         elif self.auth_token:
             headers["Authorization"] = f"Bearer {self.auth_token}"
         
+        # Extract device_id from arguments if provided (optional targeting)
+        args = dict(arguments) if arguments else {}
+        device_id = args.pop("device_id", None)
+        
         payload = {
             "tool_name": tool_name,
-            "arguments": arguments or {}
+            "arguments": args
         }
+        
+        # Include device_id in payload if specified
+        if device_id:
+            payload["device_id"] = device_id
         
         try:
             async with aiohttp.ClientSession() as session:

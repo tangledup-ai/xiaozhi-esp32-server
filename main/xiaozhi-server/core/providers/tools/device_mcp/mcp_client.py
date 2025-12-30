@@ -32,12 +32,20 @@ class MCPClient:
         # If cache is not valid, regenerate the list
         result = []
         for tool_name, tool_data in self.tools.items():
+            # Copy properties and inject optional device_id parameter
+            properties = dict(tool_data["inputSchema"].get("properties", {}))
+            properties["device_id"] = {
+                "type": "string",
+                "description": "Optional. Target device ID to execute this tool on. "
+                               "If not specified, uses the first available device."
+            }
+            
             function_def = {
                 "name": tool_name,
                 "description": tool_data["description"],
                 "parameters": {
                     "type": tool_data["inputSchema"].get("type", "object"),
-                    "properties": tool_data["inputSchema"].get("properties", {}),
+                    "properties": properties,
                     "required": tool_data["inputSchema"].get("required", []),
                 },
             }
