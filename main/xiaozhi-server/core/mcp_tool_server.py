@@ -20,7 +20,11 @@ from config.settings import load_config
 from core.connection import ConnectionHandler
 from core.providers.tools.unified_tool_handler import UnifiedToolHandler
 from core.utils.modules_initialize import initialize_modules
-from core.providers.tools.device_mcp.mcp_storage import load_device_tools
+from core.providers.tools.device_mcp.mcp_storage import (
+    load_device_tools,
+    get_available_profiles,
+    get_first_available_profile,
+)
 from core.providers.tools.device_mcp.proxy_executor import DeviceMCPProxyExecutor
 from core.providers.tools.base import ToolType
 from mcp.server.fastmcp import FastMCP
@@ -134,6 +138,7 @@ def _start_background_loop() -> asyncio.AbstractEventLoop:
 async def _build_connection(
     config: Dict[str, Any],
     modules: Dict[str, Any],
+    device_profile: Optional[str] = None,
 ) -> ConnectionHandler:
     conn = ConnectionHandler(
         config,
@@ -153,7 +158,7 @@ async def _build_connection(
 
     # 如果之前有设备通过 MCP 客户端上报过 self_* 工具，
     # 则在 MCP 工具服务器中恢复这些设备端 MCP 工具。
-    device_tools = load_device_tools()
+    device_tools, actual_profile = load_device_tools(device_profile)
     if device_tools:
         try:
             # 将保存的工具直接注入到 device_mcp 执行器使用的 mcp_client 结构中
@@ -209,14 +214,25 @@ async def _build_connection(
             # 让 ToolManager 重新发现这些设备端 MCP 工具
             conn.func_handler.tool_manager.refresh_tools()
             logger.info(
-                "[MCP-TOOLS-RESTORE] 已从本地恢复设备端 MCP 工具 %d 个，将通过 %s 代理调用",
+                "[MCP-TOOLS-RESTORE] 已从本地恢复设备端 MCP 工具 %d 个 (profile=%s)，将通过 %s 代理调用",
                 len(device_tools),
+                actual_profile,
                 proxy_url,
             )
             # 重新输出当前支持的函数列表（包含恢复的设备端工具）
             conn.func_handler.current_support_functions()
         except Exception as exc:
             logger.error(f"[MCP-TOOLS-RESTORE] 恢复设备端 MCP 工具失败: {exc}")
+    else:
+        if actual_profile is None:
+            logger.info(
+                "[MCP-TOOLS-RESTORE] 未找到可用的设备工具 profile，跳过设备端 MCP 工具恢复"
+            )
+        else:
+            logger.info(
+                "[MCP-TOOLS-RESTORE] profile '%s' 中没有设备端 MCP 工具",
+                actual_profile,
+            )
 
     return conn
 
@@ -224,6 +240,7 @@ async def _build_connection(
 def _init_connection(
     loop: asyncio.AbstractEventLoop,
     config: Dict[str, Any],
+    device_profile: Optional[str] = None,
 ) -> ConnectionHandler:
     init_llm = "LLM" in config.get("selected_module", {})
     init_memory = "Memory" in config.get("selected_module", {})
@@ -241,7 +258,7 @@ def _init_connection(
     )
 
     future = asyncio.run_coroutine_threadsafe(
-        _build_connection(config, modules),
+        _build_connection(config, modules, device_profile),
         loop,
     )
     return future.result()
@@ -293,6 +310,21 @@ def _parse_args() -> argparse.Namespace:
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         help="Override FastMCP log level.",
     )
+    available = get_available_profiles()
+    first_profile = get_first_available_profile()
+    
+    if available:
+        profiles_help = f"available: {', '.join(available)}"
+    else:
+        profiles_help = "no profiles available yet"
+    
+    parser.add_argument(
+        "--device-profile",
+        default=None,
+        help=f"Device tool profile to load from data/device_mcp_tools/<profile>.json. "
+             f"If not specified, uses the first available profile ({profiles_help}).",
+    )
+    
     return parser.parse_args()
 
 
@@ -356,7 +388,8 @@ def main() -> None:
     settings = _merge_server_settings(config, args)
 
     loop = _start_background_loop()
-    conn = _init_connection(loop, config)
+    device_profile = args.device_profile
+    conn = _init_connection(loop, config, device_profile)
     tool_handler = conn.func_handler
 
     server = XiaozhiMCPServer(
@@ -371,13 +404,15 @@ def main() -> None:
         log_level=settings["log_level"],
     )
 
+    profile_info = device_profile if device_profile else "auto (first available)"
     logger.info(
-        "Xiaozhi MCP tool server listening at http://{}:{}{} (SSE: {}, messages: {})",
+        "Xiaozhi MCP tool server listening at http://{}:{}{} (SSE: {}, messages: {}, device_profile: {})",
         settings["host"],
         settings["port"],
         settings["mount_path"],
         settings["sse_path"],
         settings["message_path"],
+        profile_info,
     )
 
     def _handle_signal(signum: int, frame: Optional[Any]) -> None:  # pragma: no cover

@@ -120,12 +120,18 @@ async def handle_mcp_message(conn, mcp_client: MCPClient, payload: dict):
 
                     # 在设备端首次获取到完整工具列表时，持久化这些 self_* 工具，
                     # 以便 mcp_tool_server 等独立进程可以恢复相同的工具集合。
+                    # 使用 auto_profile=True 自动按工具集指纹匹配或创建 profile
                     try:
                         tools_list = list(mcp_client.tools.values())
-                        save_device_tools(tools_list)
-                        logger.bind(tag=TAG).warning(
-                            f"[MCP-TOOLS-PERSIST] 已保存设备端 MCP 工具 {len(tools_list)} 个到本地，用于后续 MCP 服务器恢复"
-                        )
+                        profile_name, is_new = save_device_tools(tools_list, auto_profile=True)
+                        if is_new:
+                            logger.bind(tag=TAG).info(
+                                f"[MCP-TOOLS-PERSIST] 创建新的设备工具 profile: {profile_name} ({len(tools_list)} 个工具)"
+                            )
+                        else:
+                            logger.bind(tag=TAG).info(
+                                f"[MCP-TOOLS-PERSIST] 复用已有的设备工具 profile: {profile_name} ({len(tools_list)} 个工具)"
+                            )
                     except Exception as e:
                         logger.bind(tag=TAG).error(
                             f"[MCP-TOOLS-PERSIST] 保存设备端 MCP 工具失败: {e}"
