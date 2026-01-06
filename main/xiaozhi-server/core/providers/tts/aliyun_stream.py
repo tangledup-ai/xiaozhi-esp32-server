@@ -474,11 +474,13 @@ class TTSProvider(TTSProviderBase):
                         self.opus_encoder.encode_pcm_to_opus_stream(msg, False, self.handle_opus)
                 except websockets.ConnectionClosed:
                     logger.bind(tag=TAG).warning("WebSocket连接已关闭")
+                    self._process_before_stop_play_files()
                     break
                 except Exception as e:
                     logger.bind(tag=TAG).error(
                         f"处理TTS响应时出错: {e}\n{traceback.format_exc()}"
                     )
+                    self._process_before_stop_play_files()
                     break
                 finally:
                     self._flush_pending_sentence_text()
