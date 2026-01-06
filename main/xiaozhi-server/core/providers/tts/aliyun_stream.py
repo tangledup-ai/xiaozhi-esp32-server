@@ -321,6 +321,9 @@ class TTSProvider(TTSProviderBase):
     async def start_session(self, session_id):
         logger.bind(tag=TAG).info(f"开始会话～～{session_id}")
         try:
+            # 重置会话完成标志
+            self._session_last_sent = False
+            
             # 会话开始时检测上个会话的监听状态
             if (
                 self._monitor_task is not None
@@ -393,6 +396,11 @@ class TTSProvider(TTSProviderBase):
                         )
                     finally:
                         self._monitor_task = None
+            # 如果监听任务没有发送LAST信号（比如连接意外关闭），在这里补发
+            if not getattr(self, '_session_last_sent', False):
+                logger.bind(tag=TAG).info("监听任务未完成，补发LAST信号")
+                self._process_before_stop_play_files()
+                self._session_last_sent = True
         except Exception as e:
             logger.bind(tag=TAG).error(f"关闭会话失败: {str(e)}")
             # 确保清理资源
@@ -465,6 +473,7 @@ class TTSProvider(TTSProviderBase):
                             elif event_name == "SynthesisCompleted":
                                 logger.bind(tag=TAG).debug(f"会话结束～～")
                                 self._process_before_stop_play_files()
+                                self._session_last_sent = True
                                 session_finished = True
                                 break
                         except json.JSONDecodeError:
@@ -474,13 +483,11 @@ class TTSProvider(TTSProviderBase):
                         self.opus_encoder.encode_pcm_to_opus_stream(msg, False, self.handle_opus)
                 except websockets.ConnectionClosed:
                     logger.bind(tag=TAG).warning("WebSocket连接已关闭")
-                    self._process_before_stop_play_files()
                     break
                 except Exception as e:
                     logger.bind(tag=TAG).error(
                         f"处理TTS响应时出错: {e}\n{traceback.format_exc()}"
                     )
-                    self._process_before_stop_play_files()
                     break
                 finally:
                     self._flush_pending_sentence_text()
