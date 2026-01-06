@@ -150,6 +150,9 @@ class ASRProvider(ASRProviderBase):
             try:
                 pcm_frame = self.decoder.decode(audio, 960)
                 await self.asr_ws.send(pcm_frame)
+            except websockets.exceptions.ConnectionClosed:
+                logger.bind(tag=TAG).info("发送音频时连接已关闭，跳过")
+                await self._cleanup(conn)
             except Exception as e:
                 logger.bind(tag=TAG).warning(f"发送音频失败: {str(e)}")
                 await self._cleanup(conn)

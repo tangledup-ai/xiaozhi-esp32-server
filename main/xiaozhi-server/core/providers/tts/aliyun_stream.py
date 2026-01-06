@@ -378,9 +378,12 @@ class TTSProvider(TTSProviderBase):
                         "appkey": self.appkey,
                     }
                 }
-                await self.ws.send(json.dumps(stop_request))
-                logger.bind(tag=TAG).info("会话结束请求已发送")
-                self.last_active_time = time.time()
+                try:
+                    await self.ws.send(json.dumps(stop_request))
+                    logger.bind(tag=TAG).info("会话结束请求已发送")
+                    self.last_active_time = time.time()
+                except websockets.exceptions.ConnectionClosed:
+                    logger.bind(tag=TAG).info("发送结束请求时连接已关闭，跳过")
                 if self._monitor_task:
                     try:
                         await self._monitor_task
