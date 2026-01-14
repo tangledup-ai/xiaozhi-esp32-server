@@ -150,7 +150,7 @@ class VisionHandler:
 
             return_json = {
                 "success": True,
-                "action": Action.RESPONSE.name,
+                "action": Action.NONE.name,
                 "response": result,
                 "image_url": image_url,  # Include image URL for MCP tool server to fetch
             }
