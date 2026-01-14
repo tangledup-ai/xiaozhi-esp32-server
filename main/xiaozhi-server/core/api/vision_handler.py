@@ -1,8 +1,10 @@
 import json
 import copy
+import uuid
+from pathlib import Path
 from aiohttp import web
 from config.logger import setup_logging
-from core.utils.util import get_vision_url, is_valid_image_file
+from core.utils.util import get_vision_url, get_local_ip, is_valid_image_file
 from core.utils.vllm import create_instance
 from config.config_loader import get_private_config_from_api
 from core.utils.auth import AuthToken
@@ -14,6 +16,10 @@ TAG = __name__
 
 # 设置最大文件大小为5MB
 MAX_FILE_SIZE = 5 * 1024 * 1024
+
+# 图片缓存目录
+IMAGE_CACHE_DIR = Path("tmp/image_cache")
+IMAGE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class VisionHandler:
@@ -89,6 +95,26 @@ class VisionHandler:
                     "不支持的文件格式，请上传有效的图片文件（支持JPEG、PNG、GIF、BMP、TIFF、WEBP格式）"
                 )
 
+            # 保存图片到缓存目录，生成唯一ID
+            image_id = str(uuid.uuid4())
+            image_path = IMAGE_CACHE_DIR / f"{image_id}.jpg"
+            image_path.write_bytes(image_data)
+            self.logger.bind(tag=TAG).debug(f"Image cached: {image_path}")
+
+            # 构建图片访问URL
+            server_config = self.config.get("server", {})
+            vision_explain = server_config.get("vision_explain", "")
+            if vision_explain and "你的" not in vision_explain:
+                # 从配置的vision_explain URL中提取基础URL
+                base_url = vision_explain.rsplit("/mcp/vision/explain", 1)[0]
+            else:
+                # 使用本地IP和端口构建URL
+                local_ip = get_local_ip()
+                port = int(server_config.get("http_port", 8003))
+                base_url = f"http://{local_ip}:{port}"
+            
+            image_url = f"{base_url}/mcp/vision/image/{image_id}"
+
             # 将图片转换为base64编码
             image_base64 = base64.b64encode(image_data).decode("utf-8")
 
@@ -119,12 +145,14 @@ class VisionHandler:
                 vllm_type, current_config["VLLM"][select_vllm_module]
             )
 
-            result = vllm.response(question, image_base64)
+            # result = vllm.response(question, image_base64)
+            result = ""
 
             return_json = {
                 "success": True,
                 "action": Action.RESPONSE.name,
                 "response": result,
+                "image_url": image_url,  # Include image URL for MCP tool server to fetch
             }
 
             response = web.Response(
@@ -180,3 +208,50 @@ class VisionHandler:
         )
         response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Access-Control-Allow-Origin"] = "*"
+
+    async def handle_get_image(self, request):
+        """提供缓存图片的访问"""
+        response = None
+        try:
+            image_id = request.match_info.get('image_id', '')
+            if not image_id:
+                raise ValueError("缺少图片ID")
+            
+            # 安全检查：确保image_id是有效的UUID格式，防止路径遍历攻击
+            try:
+                uuid.UUID(image_id)
+            except ValueError:
+                raise ValueError("无效的图片ID格式")
+            
+            image_path = IMAGE_CACHE_DIR / f"{image_id}.jpg"
+            if not image_path.exists():
+                response = web.Response(
+                    text=json.dumps({"success": False, "message": "图片不存在或已过期"}),
+                    content_type="application/json",
+                    status=404,
+                )
+                return response
+            
+            image_data = image_path.read_bytes()
+            response = web.Response(
+                body=image_data,
+                content_type="image/jpeg",
+            )
+        except ValueError as e:
+            self.logger.bind(tag=TAG).error(f"获取缓存图片异常: {e}")
+            response = web.Response(
+                text=json.dumps({"success": False, "message": str(e)}),
+                content_type="application/json",
+                status=400,
+            )
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"获取缓存图片异常: {e}")
+            response = web.Response(
+                text=json.dumps({"success": False, "message": "服务器内部错误"}),
+                content_type="application/json",
+                status=500,
+            )
+        finally:
+            if response:
+                self._add_cors_headers(response)
+            return response
