@@ -46,7 +46,11 @@ class SimpleHttpServer:
         host = server_config.get("ip", "0.0.0.0")
         port = int(server_config.get("http_port", 8003))
 
-        if port:
+        if not port:
+            self.logger.bind(tag=TAG).warning("HTTP服务器端口未配置，跳过启动")
+            return
+
+        try:
             app = web.Application()
 
             if not read_config_from_api:
@@ -64,6 +68,8 @@ class SimpleHttpServer:
                     web.get("/mcp/vision/explain", self.vision_handler.handle_get),
                     web.post("/mcp/vision/explain", self.vision_handler.handle_post),
                     web.options("/mcp/vision/explain", self.vision_handler.handle_post),
+                    # 图片缓存访问接口 - 用于MCP工具服务器获取缓存的图片
+                    web.get("/mcp/vision/image/{image_id}", self.vision_handler.handle_get_image),
                     # 内部工具代理接口 - 用于MCP工具服务器代理调用设备端工具
                     web.post("/internal/tool/call", self.tool_proxy_handler.handle_post),
                     web.options("/internal/tool/call", self.tool_proxy_handler.handle_options),
@@ -72,11 +78,17 @@ class SimpleHttpServer:
             )
 
             # 运行服务
+            self.logger.bind(tag=TAG).info(f"正在启动HTTP服务器: {host}:{port}")
             runner = web.AppRunner(app)
             await runner.setup()
             site = web.TCPSite(runner, host, port)
             await site.start()
+            
+            self.logger.bind(tag=TAG).info(f"HTTP服务器已启动: http://{host}:{port}")
 
             # 保持服务运行
             while True:
                 await asyncio.sleep(3600)  # 每隔 1 小时检查一次
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"HTTP服务器启动失败: {e}", exc_info=True)
+            raise
