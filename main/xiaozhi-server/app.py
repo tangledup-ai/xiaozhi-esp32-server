@@ -42,6 +42,14 @@ async def monitor_stdin():
         await ainput()  # 异步等待输入，消费回车
 
 
+def task_exception_handler(task: asyncio.Task) -> None:
+    """处理异步任务的异常"""
+    try:
+        task.result()
+    except Exception as e:
+        logger.bind(tag=TAG).error(f"任务 {task.get_name()} 执行失败: {e}", exc_info=True)
+
+
 async def main():
     check_ffmpeg_installed()
     config = load_config()
@@ -55,14 +63,17 @@ async def main():
     config["server"]["auth_key"] = auth_key
 
     # 添加 stdin 监控任务
-    stdin_task = asyncio.create_task(monitor_stdin())
+    stdin_task = asyncio.create_task(monitor_stdin(), name="stdin_monitor")
+    stdin_task.add_done_callback(task_exception_handler)
 
     # 启动 WebSocket 服务器
     ws_server = WebSocketServer(config)
-    ws_task = asyncio.create_task(ws_server.start())
+    ws_task = asyncio.create_task(ws_server.start(), name="websocket_server")
+    ws_task.add_done_callback(task_exception_handler)
     # 启动 Simple http 服务器（传入ws_server以支持工具代理）
     ota_server = SimpleHttpServer(config, ws_server)
-    ota_task = asyncio.create_task(ota_server.start())
+    ota_task = asyncio.create_task(ota_server.start(), name="http_server")
+    ota_task.add_done_callback(task_exception_handler)
 
     read_config_from_api = config.get("read_config_from_api", False)
     port = int(config["server"].get("http_port", 8003))
