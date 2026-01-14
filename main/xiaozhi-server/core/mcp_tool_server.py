@@ -10,10 +10,13 @@ sys.path.append(osp.abspath(osp.dirname(osp.dirname(__file__))))
 
 import argparse
 import asyncio
+import base64
 import json
 import signal
 import threading
 from typing import Any, Dict, List, Optional
+
+import aiohttp
 
 from config.logger import setup_logging
 from config.settings import load_config
@@ -28,7 +31,7 @@ from core.providers.tools.device_mcp.mcp_storage import (
 from core.providers.tools.device_mcp.proxy_executor import DeviceMCPProxyExecutor
 from core.providers.tools.base import ToolType
 from mcp.server.fastmcp import FastMCP
-from mcp.types import Content, TextContent, Tool as MCPTool
+from mcp.types import Content, TextContent, ImageContent, Tool as MCPTool
 from plugins_func.register import ActionResponse
 
 logger = setup_logging()
@@ -54,6 +57,32 @@ def _format_action_response(response: ActionResponse) -> str:
     if not parts:
         parts.append(getattr(response.action, "message", response.action.name))
     return "\n".join(part for part in parts if part)
+
+
+def _extract_image_url(response: ActionResponse) -> Optional[str]:
+    """Extract image_url from ActionResponse.result if present.
+
+    Parses response.result as JSON and extracts the 'image_url' field.
+    Returns None if parsing fails or field is not present.
+    """
+    result = response.result
+    if result is None:
+        return None
+
+    # If result is already a dict, extract directly
+    if isinstance(result, dict):
+        return result.get("image_url")
+
+    # If result is a string, try to parse as JSON
+    if isinstance(result, str):
+        try:
+            parsed = json.loads(result)
+            if isinstance(parsed, dict):
+                return parsed.get("image_url")
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    return None
 
 
 class XiaozhiMCPServer(FastMCP):
@@ -83,6 +112,67 @@ class XiaozhiMCPServer(FastMCP):
             log_level=log_level.upper(),
         )
         self.tool_handler = tool_handler
+
+    async def _fetch_image_content(self, image_url: str) -> Optional[ImageContent]:
+        """Fetch image from URL and return as ImageContent.
+
+        Args:
+            image_url: URL to fetch the image from
+
+        Returns:
+            ImageContent with base64-encoded image data and mimeType "image/jpeg",
+            or None if fetch fails for any reason.
+        """
+        if not image_url:
+            return None
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    image_url, timeout=aiohttp.ClientTimeout(total=30)
+                ) as resp:
+                    if resp.status != 200:
+                        logger.warning(
+                            "[MCP-IMAGE] Failed to fetch image from %s: HTTP %d",
+                            image_url,
+                            resp.status,
+                        )
+                        return None
+
+                    image_data = await resp.read()
+                    if not image_data:
+                        logger.warning(
+                            "[MCP-IMAGE] Empty image data from %s",
+                            image_url,
+                        )
+                        return None
+
+                    encoded = base64.b64encode(image_data).decode("utf-8")
+                    return ImageContent(
+                        type="image",
+                        data=encoded,
+                        mimeType="image/jpeg",
+                    )
+        except aiohttp.ClientError as exc:
+            logger.warning(
+                "[MCP-IMAGE] Network error fetching image from %s: %s",
+                image_url,
+                exc,
+            )
+            return None
+        except asyncio.TimeoutError:
+            logger.warning(
+                "[MCP-IMAGE] Timeout fetching image from %s",
+                image_url,
+            )
+            return None
+        except Exception as exc:
+            logger.warning(
+                "[MCP-IMAGE] Unexpected error fetching image from %s: %s",
+                image_url,
+                exc,
+            )
+            return None
 
     async def list_tools(self) -> List[MCPTool]:
         # Refresh cached tool metadata to ensure new registrations are visible.
@@ -120,6 +210,17 @@ class XiaozhiMCPServer(FastMCP):
             name, arguments or {}
         )
         text = _format_action_response(response)
+
+        # Check if this is a camera tool or if response contains image_url
+        image_url = _extract_image_url(response)
+        is_camera_tool = name.startswith("self_camera_")
+
+        if is_camera_tool or image_url:
+            if image_url:
+                image_content = await self._fetch_image_content(image_url)
+                if image_content:
+                    return [TextContent(type="text", text=text), image_content]
+
         return [TextContent(type="text", text=text)]
 
 
