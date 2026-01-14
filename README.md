@@ -8,6 +8,16 @@ To enable hardware tools usage for other backends, assuming you are at `main/xia
     - `main/xiaozhi-server/test/test_tool_proxy.py`
     - `main/xiaozhi-server/test/test_mcp_langchain.py`
 
+### Run with docker
+```bash
+## build
+docker compose -f .\main\xiaozhi-server\docker-compose-local.yml build
+
+## run
+docker compose -f .\main\xiaozhi-server\docker-compose-local.yml up
+```
+
+
 # ORIGINAL README BELOW
 [![Banners](docs/images/banner1.png)](https://github.com/xinnan-tech/xiaozhi-esp32-server)
 
