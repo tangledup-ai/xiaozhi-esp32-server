@@ -1,0 +1,140 @@
+[
+  {
+    "name": "self.get_device_status",
+    "description": "Provides the real-time information of the device, including the current status of the audio speaker, screen, battery, network, etc.\nUse this tool for: \n1. Answering questions about current condition (e.g. what is the current volume of the audio speaker?)\n2. As the first step to control the device (e.g. turn up / down the volume of the audio speaker, etc.)",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "self.audio_speaker.set_volume",
+    "description": "Set the volume of the audio speaker. If the current volume is unknown, you must call `self_get_device_status` tool first and then call this tool.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "volume": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "volume"
+      ]
+    }
+  },
+  {
+    "name": "self.screen.set_brightness",
+    "description": "Set the brightness of the screen.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "brightness": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "brightness"
+      ]
+    }
+  },
+  {
+    "name": "self.screen.set_theme",
+    "description": "Set the theme of the screen. The theme can be `light` or `dark`.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "theme": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "theme"
+      ]
+    }
+  },
+  {
+    "name": "self.gif.set_gif_mode",
+    "description": "切换文字模式与表情包模式。当用户意图切换聊天模式与表情包模式时都使用此工具。\n参数：\n   `mode`: 模式，可选值只有'normal' (文字模式) and 'pet' (表情包模式).\n返回值：\n   反馈状态信息，不需要确认，立即播报\n",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "mode"
+      ]
+    }
+  },
+  {
+    "name": "self.display.set_mode",
+    "description": "切换横屏显示与竖屏显示。当用户意图切换横屏显示与竖屏显示时都使用此工具。（必需重启才会彻底成功）\n参数：\n   `mode`: 屏幕显示模式，可选值只有`1`(横屏模式）和`0`（竖屏模式）\n返回值：\n   反馈状态信息，不需要确认，立即播报\n",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "mode"
+      ]
+    }
+  },
+  {
+    "name": "self.camera.take_photo",
+    "description": "Take a photo and explain it. Use this tool after the user asks you to see something.\nArgs:\n  `question`: The question that you want to ask about the photo.\nReturn:\n  A JSON object that provides the photo information.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "question": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "question"
+      ]
+    }
+  },
+  {
+    "name": "self.AEC.set_mode",
+    "description": "设置AEC对话打断模式。当用户意图切换对话打断模式时或者用户觉得ai对话容易被打断时或者用户觉得无法实现对话打断时都使用此工具。\n参数：\n   `mode`: 对话打断模式，可选值只有`kAecOff`(关闭）和`kAecOnDeviceSide`（开启）\n返回值：\n   反馈状态信息，不需要确认，立即播报相关数据\n",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "mode"
+      ]
+    }
+  },
+  {
+    "name": "self.AEC.get_mode",
+    "description": "获取AEC对话打断模式状态。当用户意图获取对话打断模式状态时使用此工具。\n返回值：\n   反馈状态信息，不需要确认，立即播报相关数据\n",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "self.res.esp_restart",
+    "description": "重启设备。当用户意图重启设备时使用此工具。\n",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  }
+]
