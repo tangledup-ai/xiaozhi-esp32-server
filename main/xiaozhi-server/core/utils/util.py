@@ -46,6 +46,10 @@ def get_local_ip():
         s.connect(("8.8.8.8", 80))
         local_ip = s.getsockname()[0]
         s.close()
+        if local_ip == "172.21.0.2":
+            local_ip = os.environ.get("LOCAL_IP")
+            assert local_ip != "127.0.0.1", "provide a local ip if you are using Docker"
+
         return local_ip
     except Exception as e:
         return "127.0.0.1"
