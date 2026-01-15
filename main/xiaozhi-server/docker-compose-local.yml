@@ -25,6 +25,8 @@ services:
       - seccomp:unconfined
     environment:
       - TZ=Asia/Shanghai
+      # 用于Docker环境下MCP工具服务器获取缓存图片
+      - IMAGE_BASE_URL=http://127.0.0.1:8003
     volumes:
       # 配置文件目录
       - ./data:/opt/xiaozhi-esp32-server/data
