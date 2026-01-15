@@ -39,6 +39,22 @@ emoji_map = {
 }
 
 
+def running_in_docker() -> bool:
+    # Explicit override (always good to have)
+    if os.environ.get("RUNNING_IN_DOCKER") == "1":
+        return True
+
+    # Standard Docker file
+    if os.path.exists("/.dockerenv"):
+        return True
+
+    # cgroup check (most robust)
+    try:
+        with open("/proc/1/cgroup", "rt") as f:
+            return any("docker" in line or "containerd" in line for line in f)
+    except Exception:
+        return False
+
 def get_local_ip():
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -46,7 +62,7 @@ def get_local_ip():
         s.connect(("8.8.8.8", 80))
         local_ip = s.getsockname()[0]
         s.close()
-        if local_ip == "172.21.0.2":
+        if running_in_docker():
             local_ip = os.environ.get("LOCAL_IP")
             assert local_ip != "127.0.0.1", "provide a local ip if you are using Docker"
 
