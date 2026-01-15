@@ -16,7 +16,8 @@ To enable hardware tools usage for other backends, assuming you are at `main/xia
   - For sample usage of the server externally :
     - `main/xiaozhi-server/test/test_tool_proxy.py`
     - `main/xiaozhi-server/test/test_mcp_langchain.py`
-
+- Need to configure `IMAGE_BASE_URL` in [docker-compose-local.yml](main/xiaozhi-server/docker-compose-local.yml) to host ip if using docker
+  - eg:`http://127.0.0.1:8003` -> `http://<YOUR HOST IP>:8003`
 ### Run with docker
 ```bash
 ## build
