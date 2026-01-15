@@ -116,12 +116,13 @@ class VisionHandler:
             
             # 支持通过环境变量覆盖图片基础URL（用于Docker环境）
             # 当MCP工具服务器在Docker容器内运行时，需要使用容器可访问的地址
-            image_base_url = os.environ.get(
-                "IMAGE_BASE_URL",
-                server_config.get("image_base_url", base_url)
-            )
+            # image_base_url = os.environ.get(
+            #     "IMAGE_BASE_URL",
+            #     server_config.get("image_base_url", base_url)
+            # )
             
-            image_url = f"{image_base_url}/mcp/vision/image/{image_id}"
+            # image_url = f"{image_base_url}/mcp/vision/image/{image_id}"
+            image_url = f"{base_url}/mcp/vision/image/{image_id}"
 
             # 将图片转换为base64编码
             image_base64 = base64.b64encode(image_data).decode("utf-8")
