@@ -3,7 +3,16 @@ To enable hardware tools usage for other backends, assuming you are at `main/xia
 - Run `app.py` as usual
 - Run `core/mcp_tool_server.py` for local
 - Run `core/mcp_tool_server.py --host 0.0.0.0 --port 8805` for external access
-  - NOTE: you need to generate a token a token using `generate_token.py` for external access. the `--auth-key` is the `secret` in `data/.config.yaml`.
+  - NOTE: you need to generate a token a token using `generate_token.py` for external access. the `--auth-key` is the `secret` in `data/.config.yaml`. Add that key to `config/mcp_config.json` in `lang-agent`. Example:
+  ```json
+  "xiaozhi": {
+      "url": "http://6.6.6.4:8805/sse",
+      "transport": "sse",
+        "headers": {
+            "Authorization": "Bearer eyJhbGci****UjFs"
+        }
+    }
+  ```
   - For sample usage of the server externally :
     - `main/xiaozhi-server/test/test_tool_proxy.py`
     - `main/xiaozhi-server/test/test_mcp_langchain.py`
