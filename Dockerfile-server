@@ -46,4 +46,4 @@ ENV PATH="/opt/conda/envs/xiaozhi/bin:${PATH}"
 COPY main/xiaozhi-server .
 
 # 容器启动命令：同时运行主应用与 MCP 工具服务
-CMD ["sh", "-c", "python app.py & python core/mcp_tool_server.py --host 0.0.0.0 --port 8805 & wait"]
+CMD ["sh", "-c", "python app.py & python core/mcp_tool_server.py --host 0.0.0.0 --port 8805 --device-profile camera & wait"]
