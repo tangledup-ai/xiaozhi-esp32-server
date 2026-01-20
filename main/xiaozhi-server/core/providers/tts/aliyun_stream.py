@@ -132,6 +132,9 @@ class TTSProvider(TTSProviderBase):
 
         # 专属tts设置
         self.message_id = ""
+        
+        # 用于等待SynthesisStarted确认的事件
+        self._synthesis_started_event = None
 
         # 创建Opus编码器
         self.opus_encoder = opus_encoder_utils.OpusEncoderUtils(
@@ -288,11 +291,34 @@ class TTSProvider(TTSProviderBase):
                     f"处理TTS文本失败: {str(e)}, 类型: {type(e).__name__}, 堆栈: {traceback.format_exc()}"
                 )
 
+    async def _ensure_session_active(self):
+        """Ensure WebSocket is connected and session is started. Reconnect if needed."""
+        need_reconnect = False
+        if self.ws is None:
+            logger.bind(tag=TAG).warning("WebSocket连接不存在，尝试重新连接...")
+            need_reconnect = True
+        elif self.last_active_time and (time.time() - self.last_active_time > 10):
+            logger.bind(tag=TAG).warning("WebSocket连接已超时，尝试重新连接...")
+            need_reconnect = True
+        
+        if need_reconnect:
+            # Clean up existing resources
+            await self.close()
+            # Generate new message_id for the new session
+            self.message_id = str(uuid.uuid4().hex)
+            # Reconnect and restart session
+            await self.start_session(self.conn.sentence_id)
+            logger.bind(tag=TAG).info("WebSocket重连成功，会话已重新启动")
+
     async def text_to_speak(self, text, _):
         try:
+            # Ensure WebSocket is connected, reconnect if needed
+            await self._ensure_session_active()
+            
             if self.ws is None:
-                logger.bind(tag=TAG).warning(f"WebSocket连接不存在，终止发送文本")
+                logger.bind(tag=TAG).error("WebSocket重连失败，无法发送文本")
                 return
+            
             filtered_text = MarkdownCleaner.clean_markdown(text)
             run_request = {
                 "header": {
@@ -323,6 +349,9 @@ class TTSProvider(TTSProviderBase):
         try:
             # 重置会话完成标志
             self._session_last_sent = False
+            
+            # 创建用于等待SynthesisStarted的事件
+            self._synthesis_started_event = asyncio.Event()
             
             # 会话开始时检测上个会话的监听状态
             if (
@@ -362,6 +391,13 @@ class TTSProvider(TTSProviderBase):
             await self.ws.send(json.dumps(start_request))
             self.last_active_time = time.time()
             logger.bind(tag=TAG).info("会话启动请求已发送")
+            
+            # 等待SynthesisStarted确认，超时5秒
+            try:
+                await asyncio.wait_for(self._synthesis_started_event.wait(), timeout=5.0)
+                logger.bind(tag=TAG).info("收到SynthesisStarted确认，会话已就绪")
+            except asyncio.TimeoutError:
+                logger.bind(tag=TAG).warning("等待SynthesisStarted超时，继续执行")
         except Exception as e:
             logger.bind(tag=TAG).error(f"启动会话失败: {str(e)}")
             # 确保清理资源
@@ -438,7 +474,8 @@ class TTSProvider(TTSProviderBase):
                     pending_text = pending_queue.get_nowait()
                     if pending_text:
                         logger.bind(tag=TAG).info(f"句子语音生成成功： {pending_text}")
-                        self.tts_audio_queue.put((SentenceType.FIRST, [], pending_text))
+                        # 直接发送文本，不经过音频队列，避免被音频数据阻塞
+                        self.send_audio_message(SentenceType.FIRST, [], pending_text)
                         flushed_count += 1
                 except queue.Empty:
                     break
@@ -464,6 +501,9 @@ class TTSProvider(TTSProviderBase):
                             event_name = header.get("name")
                             if event_name == "SynthesisStarted":
                                 logger.bind(tag=TAG).debug("TTS合成已启动")
+                                # 通知start_session等待完成
+                                if self._synthesis_started_event:
+                                    self._synthesis_started_event.set()
                                 self.tts_audio_queue.put(
                                     (SentenceType.FIRST, [], None)
                                 )
@@ -500,6 +540,9 @@ class TTSProvider(TTSProviderBase):
                 self.ws = None
         # 监听任务退出时清理引用
         finally:
+            # 确保事件被设置，防止start_session永久等待
+            if self._synthesis_started_event and not self._synthesis_started_event.is_set():
+                self._synthesis_started_event.set()
             self._monitor_task = None
 
     def to_tts(self, text: str) -> list:
