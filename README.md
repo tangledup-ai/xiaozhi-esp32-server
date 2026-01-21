@@ -13,6 +13,12 @@ To enable hardware tools usage for other backends, assuming you are at `main/xia
         }
     }
   ```
+  - Alternative to `secret` in `data/.config.yaml`, you can set a `INTERNAL_API_KEY` on the server side and generate a key instead. This overrides the `secret`
+  - Alternatively, **配置 (在 data/.config.yaml 中):**
+    ```yaml
+    server:
+      internal_api_key: "your-secret-key-here"
+    ```
   - For sample usage of the server externally :
     - `main/xiaozhi-server/test/test_tool_proxy.py`
     - `main/xiaozhi-server/test/test_mcp_langchain.py`
@@ -24,6 +30,9 @@ docker compose -f .\main\xiaozhi-server\docker-compose-local.yml build
 
 ## run
 docker compose -f .\main\xiaozhi-server\docker-compose-local.yml up
+
+## run server only
+docker compose -f main/xiaozhi-server/docker-compose-local.yml up xiaozhi-esp32-server
 ```
 
 
