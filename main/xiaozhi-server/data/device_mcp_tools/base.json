@@ -1,0 +1,116 @@
+[
+  {
+    "name": "self.get_device_status",
+    "description": "Provides the real-time information of the device, including the current status of the audio speaker, screen, battery, network, etc.\nUse this tool for: \n1. Answering questions about current condition (e.g. what is the current volume of the audio speaker?)\n2. As the first step to control the device (e.g. turn up / down the volume of the audio speaker, etc.)",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "self.audio_speaker.set_volume",
+    "description": "Set the volume of the audio speaker. If the current volume is unknown, you must call `self_get_device_status` tool first and then call this tool.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "volume": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "volume"
+      ]
+    }
+  },
+  {
+    "name": "self.screen.set_brightness",
+    "description": "Set the brightness of the screen.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "brightness": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "brightness"
+      ]
+    }
+  },
+  {
+    "name": "self.screen.show_add_friend_qr_code",
+    "description": "Display the add friend QR code on the screen in fullscreen for 30 seconds. Use this when user mentions wanting to add friends (加好友).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "self.screen.set_theme",
+    "description": "Set the theme of the screen. The theme can be `light` or `dark`.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "theme": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "theme"
+      ]
+    }
+  },
+  {
+    "name": "self.screen.show_qr_code",
+    "description": "Display a QR code on the screen with the given content. Use this when user wants to show a QR code.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "content"
+      ]
+    }
+  },
+  {
+    "name": "self.screen.display_payment_qr_code",
+    "description": "Display the payment QR code received from backend. This tool is called by the backend to show the actual payment QR code.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "qr_data": {
+          "type": "string",
+          "default": "QR code data to display"
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "self.screen.payment_success",
+    "description": "Called when payment is successful to automatically close the QR code display.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "self.screen.exit_qr_code",
+    "description": "Exit/close the currently displayed QR code. Use this when user wants to exit or close the QR code display (退出二维码).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  }
+]
