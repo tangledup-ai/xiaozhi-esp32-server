@@ -1,0 +1,55 @@
+# xiaozhi-server configuration
+# This configuration uses local settings and integrates with Aliyun services
+
+server:
+  ip: 0.0.0.0
+  port: 8000
+  http_port: 8003
+  websocket: ws://你的ip或者域名:端口号/xiaozhi/v1/     # Must fill this out if using Docker
+  vision_explain: http://你的ip或者域名:端口号/mcp/vision/explain
+  auth:
+    enabled: false
+
+# Manager API configuration - commented out to run standalone
+# If you want to use the web management console, uncomment these lines
+# and start the manager-api service
+#manager-api:
+#  url: http://127.0.0.1:8002/xiaozhi
+#  secret: 91e44df8-a834-4ce6-a278-2c6b6c15fba3
+
+# 选择使用的模块
+selected_module:
+  VAD: SileroVAD    # 语音活动检测
+  ASR: FunASR       # 本地离线语音识别
+  LLM: LANGprovider
+  TTS: AliyunStreamTTS
+  Intent: nointent  # 不使用意图识别
+  Memory: nomem     # 不使用记忆功能
+
+# 语音识别配置 - 本地离线ASR (FunASR)
+# FunASR使用config.yaml中的默认配置
+# 需要下载SenseVoiceSmall模型到 models/SenseVoiceSmall/ 目录
+
+# LLM配置 - LANG provider
+LLM:
+  LANGprovider:
+    type: AliBL
+    base_url: http://127.0.0.1:8588/api/
+    app_id: asgsag
+    api_key: jkasgh
+
+# TTS配置 - 阿里云流式语音合成
+TTS:
+  AliyunStreamTTS:
+    type: aliyun_stream
+    appkey: E72***********5XW
+    access_key_id: LTAI***********xXk
+    access_key_secret: ************
+    voice: longxiaochun
+    host: nls-gateway-cn-beijing.aliyuncs.com
+    format: pcm
+    sample_rate: 16000
+    volume: 50
+    pitch_rate: 0
+    speech_rate: 0
+    output_dir: tmp/
