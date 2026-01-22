@@ -23,6 +23,7 @@ To enable hardware tools usage for other backends, assuming you are at `main/xia
     - `main/xiaozhi-server/test/test_tool_proxy.py`
     - `main/xiaozhi-server/test/test_mcp_langchain.py`
 - Need to configure `LOCAL_IP` in [docker-compose-local.yml](main/xiaozhi-server/docker-compose-local.yml) to host ip if using docker
+- When using Docker and xiaozhi server only, need to fill out `websocket` in `data/.config.yaml`
 ### Run with docker
 ```bash
 ## build
