@@ -5,7 +5,7 @@ server:
   ip: 0.0.0.0
   port: 8000
   http_port: 8003
-  websocket: ws://你的ip或者域名:端口号/xiaozhi/v1/     # Must fill this out if using Docker
+  websocket: ws://你的ip或者域名:8000/xiaozhi/v1/     # Must fill this out if using Docker
   vision_explain: http://你的ip或者域名:端口号/mcp/vision/explain
   auth:
     enabled: false
