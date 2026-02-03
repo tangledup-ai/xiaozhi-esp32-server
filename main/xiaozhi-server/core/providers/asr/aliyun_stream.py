@@ -208,7 +208,7 @@ class ASRProvider(ASRProviderBase):
         try:
             while not conn.stop_event.is_set():
                 try:
-                    response = await asyncio.wait_for(self.asr_ws.recv(), timeout=1.0)
+                    response = await asyncio.wait_for(self.asr_ws.recv(), timeout=10.0)
                     result = json.loads(response)
 
                     header = result.get("header", {})
