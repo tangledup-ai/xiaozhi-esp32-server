@@ -73,19 +73,8 @@ class SimpleHttpServer:
                         ),
                     ]
                 )
+
             # 添加路由
-            app.add_routes(
-                [
-                    web.get("/mcp/vision/explain", self.vision_handler.handle_get),
-                    web.post(
-                        "/mcp/vision/explain", self.vision_handler.handle_post
-                    ),
-                    web.options(
-                        "/mcp/vision/explain", self.vision_handler.handle_options
-                    ),
-                ]
-            )
-                # 添加路由
             app.add_routes(
                 [
                     web.get("/mcp/vision/explain", self.vision_handler.handle_get),
