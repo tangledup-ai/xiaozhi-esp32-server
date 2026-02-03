@@ -41,16 +41,16 @@ class SimpleHttpServer:
             return f"ws://{local_ip}:{port}/xiaozhi/v1/"
 
     async def start(self):
-        server_config = self.config["server"]
-        read_config_from_api = self.config.get("read_config_from_api", False)
-        host = server_config.get("ip", "0.0.0.0")
-        port = int(server_config.get("http_port", 8003))
-
-        if not port:
-            self.logger.bind(tag=TAG).warning("HTTP服务器端口未配置，跳过启动")
-            return
-
         try:
+            server_config = self.config["server"]
+            read_config_from_api = self.config.get("read_config_from_api", False)
+            host = server_config.get("ip", "0.0.0.0")
+            port = int(server_config.get("http_port", 8003))
+
+            if not port:
+                self.logger.bind(tag=TAG).warning("HTTP服务器端口未配置，跳过启动")
+                return
+
             app = web.Application()
 
             if not read_config_from_api:
@@ -59,10 +59,33 @@ class SimpleHttpServer:
                     [
                         web.get("/xiaozhi/ota/", self.ota_handler.handle_get),
                         web.post("/xiaozhi/ota/", self.ota_handler.handle_post),
-                        web.options("/xiaozhi/ota/", self.ota_handler.handle_post),
+                        web.options(
+                            "/xiaozhi/ota/", self.ota_handler.handle_options
+                        ),
+                        # 下载接口，仅提供 data/bin/*.bin 下载
+                        web.get(
+                            "/xiaozhi/ota/download/{filename}",
+                            self.ota_handler.handle_download,
+                        ),
+                        web.options(
+                            "/xiaozhi/ota/download/{filename}",
+                            self.ota_handler.handle_options,
+                        ),
                     ]
                 )
             # 添加路由
+            app.add_routes(
+                [
+                    web.get("/mcp/vision/explain", self.vision_handler.handle_get),
+                    web.post(
+                        "/mcp/vision/explain", self.vision_handler.handle_post
+                    ),
+                    web.options(
+                        "/mcp/vision/explain", self.vision_handler.handle_options
+                    ),
+                ]
+            )
+                # 添加路由
             app.add_routes(
                 [
                     web.get("/mcp/vision/explain", self.vision_handler.handle_get),

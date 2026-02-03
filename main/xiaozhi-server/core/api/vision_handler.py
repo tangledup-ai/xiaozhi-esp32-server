@@ -6,6 +6,8 @@ from pathlib import Path
 from aiohttp import web
 from config.logger import setup_logging
 from core.utils.util import get_vision_url, get_local_ip, is_valid_image_file
+from core.api.base_handler import BaseHandler
+from core.utils.util import get_vision_url, is_valid_image_file
 from core.utils.vllm import create_instance
 from config.config_loader import get_private_config_from_api
 from core.utils.auth import AuthToken
@@ -23,10 +25,9 @@ IMAGE_CACHE_DIR = Path("tmp/image_cache")
 IMAGE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
-class VisionHandler:
+class VisionHandler(BaseHandler):
     def __init__(self, config: dict):
-        self.config = config
-        self.logger = setup_logging()
+        super().__init__(config)
         # 初始化认证工具
         self.auth = AuthToken(config["server"]["auth_key"])
 
@@ -131,7 +132,7 @@ class VisionHandler:
             current_config = copy.deepcopy(self.config)
             read_config_from_api = current_config.get("read_config_from_api", False)
             if read_config_from_api:
-                current_config = get_private_config_from_api(
+                current_config = await get_private_config_from_api(
                     current_config,
                     device_id,
                     client_id,

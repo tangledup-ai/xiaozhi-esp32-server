@@ -32,16 +32,20 @@ import xiaozhi.modules.agent.dao.AgentDao;
 import xiaozhi.modules.agent.dto.AgentCreateDTO;
 import xiaozhi.modules.agent.dto.AgentDTO;
 import xiaozhi.modules.agent.dto.AgentUpdateDTO;
+import xiaozhi.modules.agent.entity.AgentContextProviderEntity;
 import xiaozhi.modules.agent.entity.AgentEntity;
 import xiaozhi.modules.agent.entity.AgentPluginMapping;
 import xiaozhi.modules.agent.entity.AgentTemplateEntity;
 import xiaozhi.modules.agent.service.AgentChatHistoryService;
+import xiaozhi.modules.agent.service.AgentContextProviderService;
 import xiaozhi.modules.agent.service.AgentPluginMappingService;
 import xiaozhi.modules.agent.service.AgentService;
 import xiaozhi.modules.agent.service.AgentTemplateService;
 import xiaozhi.modules.agent.vo.AgentInfoVO;
+import xiaozhi.modules.device.entity.DeviceEntity;
 import xiaozhi.modules.device.service.DeviceService;
 import xiaozhi.modules.model.dto.ModelProviderDTO;
+import xiaozhi.modules.model.dto.VoiceDTO;
 import xiaozhi.modules.model.entity.ModelConfigEntity;
 import xiaozhi.modules.model.service.ModelConfigService;
 import xiaozhi.modules.model.service.ModelProviderService;
@@ -61,6 +65,7 @@ public class AgentServiceImpl extends BaseServiceImpl<AgentDao, AgentEntity> imp
     private final AgentChatHistoryService agentChatHistoryService;
     private final AgentTemplateService agentTemplateService;
     private final ModelProviderService modelProviderService;
+    private final AgentContextProviderService agentContextProviderService;
 
     @Override
     public PageData<AgentEntity> adminAgentList(Map<String, Object> params) {
@@ -84,6 +89,13 @@ public class AgentServiceImpl extends BaseServiceImpl<AgentDao, AgentEntity> imp
                 agent.setChatHistoryConf(Constant.ChatHistoryConfEnum.RECORD_TEXT_AUDIO.getCode());
             }
         }
+
+        // 查询上下文源配置
+        AgentContextProviderEntity contextProviderEntity = agentContextProviderService.getByAgentId(id);
+        if (contextProviderEntity != null) {
+            agent.setContextProviders(contextProviderEntity.getContextProviders());
+        }
+
         // 无需额外查询插件列表，已通过SQL查询出来
         return agent;
     }
@@ -116,38 +128,75 @@ public class AgentServiceImpl extends BaseServiceImpl<AgentDao, AgentEntity> imp
     }
 
     @Override
-    public List<AgentDTO> getUserAgents(Long userId) {
-        QueryWrapper<AgentEntity> wrapper = new QueryWrapper<>();
-        wrapper.eq("user_id", userId);
-        List<AgentEntity> agents = agentDao.selectList(wrapper);
-        return agents.stream().map(agent -> {
-            AgentDTO dto = new AgentDTO();
-            dto.setId(agent.getId());
-            dto.setAgentName(agent.getAgentName());
-            dto.setSystemPrompt(agent.getSystemPrompt());
+    public List<AgentDTO> getUserAgents(Long userId, String keyword, String searchType) {
+        QueryWrapper<AgentEntity> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("user_id", userId).orderByDesc("created_at");
 
-            // 获取 TTS 模型名称
-            dto.setTtsModelName(modelConfigService.getModelNameById(agent.getTtsModelId()));
+        // 如果有搜索关键词，根据搜索类型添加相应的查询条件
+        if (StringUtils.isNotBlank(keyword)) {
+            if ("mac".equals(searchType)) {
+                // 按MAC地址搜索：先搜索设备，再获取对应的智能体
+                List<DeviceEntity> devices = deviceService.searchDevicesByMacAddress(keyword, userId);
 
-            // 获取 LLM 模型名称
-            dto.setLlmModelName(modelConfigService.getModelNameById(agent.getLlmModelId()));
+                if (!devices.isEmpty()) {
+                    // 获取设备对应的智能体ID列表
+                    List<String> agentIds = devices.stream()
+                            .map(DeviceEntity::getAgentId)
+                            .distinct()
+                            .collect(Collectors.toList());
 
-            // 获取 VLLM 模型名称
-            dto.setVllmModelName(modelConfigService.getModelNameById(agent.getVllmModelId()));
+                    if (!agentIds.isEmpty()) {
+                        queryWrapper.in("id", agentIds);
+                    } else {
+                        return new ArrayList<>();
+                    }
+                } else {
+                    return new ArrayList<>();
+                }
+            } else {
+                // 按名称搜索
+                queryWrapper.like("agent_name", keyword);
+            }
+        }
 
-            // 获取记忆模型名称
-            dto.setMemModelId(agent.getMemModelId());
+        // 执行查询
+        List<AgentEntity> agentEntities = baseDao.selectList(queryWrapper);
 
-            // 获取 TTS 音色名称
-            dto.setTtsVoiceName(timbreModelService.getTimbreNameById(agent.getTtsVoiceId()));
+        // 转换为DTO并设置所有必要字段
+        return agentEntities.stream().map(this::buildAgentDTO).collect(Collectors.toList());
+    }
 
-            // 获取智能体最近的最后连接时长
-            dto.setLastConnectedAt(deviceService.getLatestLastConnectionTime(agent.getId()));
+    /**
+     * 将AgentEntity转换为AgentDTO
+     */
+    private AgentDTO buildAgentDTO(AgentEntity agent) {
+        AgentDTO dto = new AgentDTO();
+        dto.setId(agent.getId());
+        dto.setAgentName(agent.getAgentName());
+        dto.setSystemPrompt(agent.getSystemPrompt());
 
-            // 获取设备数量
-            dto.setDeviceCount(getDeviceCountByAgentId(agent.getId()));
-            return dto;
-        }).collect(Collectors.toList());
+        // 获取 TTS 模型名称
+        dto.setTtsModelName(modelConfigService.getModelNameById(agent.getTtsModelId()));
+
+        // 获取 LLM 模型名称
+        dto.setLlmModelName(modelConfigService.getModelNameById(agent.getLlmModelId()));
+
+        // 获取 VLLM 模型名称
+        dto.setVllmModelName(modelConfigService.getModelNameById(agent.getVllmModelId()));
+
+        // 获取记忆模型名称
+        dto.setMemModelId(agent.getMemModelId());
+
+        // 获取 TTS 音色名称
+        dto.setTtsVoiceName(timbreModelService.getTimbreNameById(agent.getTtsVoiceId()));
+
+        // 获取智能体最近的最后连接时长
+        dto.setLastConnectedAt(deviceService.getLatestLastConnectionTime(agent.getId()));
+
+        // 获取设备数量
+        dto.setDeviceCount(getDeviceCountByAgentId(agent.getId()));
+
+        return dto;
     }
 
     @Override
@@ -330,6 +379,14 @@ public class AgentServiceImpl extends BaseServiceImpl<AgentDao, AgentEntity> imp
             agentChatHistoryService.deleteByAgentId(existingEntity.getId(), true, false);
         }
 
+        // 更新上下文源配置
+        if (dto.getContextProviders() != null) {
+            AgentContextProviderEntity contextEntity = new AgentContextProviderEntity();
+            contextEntity.setAgentId(agentId);
+            contextEntity.setContextProviders(dto.getContextProviders());
+            agentContextProviderService.saveOrUpdateByAgentId(contextEntity);
+        }
+
         boolean b = validateLLMIntentParams(dto.getLlmModelId(), dto.getIntentModelId());
         if (!b) {
             throw new RenException(ErrorCode.LLM_INTENT_PARAMS_MISMATCH);
@@ -373,12 +430,41 @@ public class AgentServiceImpl extends BaseServiceImpl<AgentDao, AgentEntity> imp
             entity.setLlmModelId(template.getLlmModelId());
             entity.setVllmModelId(template.getVllmModelId());
             entity.setTtsModelId(template.getTtsModelId());
+
+            if (template.getTtsVoiceId() == null && template.getTtsModelId() != null) {
+                ModelConfigEntity ttsModel = modelConfigService.selectById(template.getTtsModelId());
+                if (ttsModel != null && ttsModel.getConfigJson() != null) {
+                    Map<String, Object> config = ttsModel.getConfigJson();
+                    String voice = (String) config.get("voice");
+                    if (StringUtils.isBlank(voice)) {
+                        voice = (String) config.get("speaker");
+                    }
+                    VoiceDTO timbre = timbreModelService.getByVoiceCode(template.getTtsModelId(), voice);
+                    if (timbre != null) {
+                        template.setTtsVoiceId(timbre.getId());
+                    }
+                }
+            }
+
             entity.setTtsVoiceId(template.getTtsVoiceId());
             entity.setMemModelId(template.getMemModelId());
             entity.setIntentModelId(template.getIntentModelId());
             entity.setSystemPrompt(template.getSystemPrompt());
             entity.setSummaryMemory(template.getSummaryMemory());
-            entity.setChatHistoryConf(template.getChatHistoryConf());
+
+            // 根据记忆模型类型设置默认的chatHistoryConf值
+            if (template.getMemModelId() != null) {
+                if (template.getMemModelId().equals("Memory_nomem")) {
+                    // 无记忆功能的模型，默认不记录聊天记录
+                    entity.setChatHistoryConf(0);
+                } else {
+                    // 有记忆功能的模型，默认记录文本和语音
+                    entity.setChatHistoryConf(2);
+                }
+            } else {
+                entity.setChatHistoryConf(template.getChatHistoryConf());
+            }
+
             entity.setLangCode(template.getLangCode());
             entity.setLanguage(template.getLanguage());
         }
@@ -420,4 +506,5 @@ public class AgentServiceImpl extends BaseServiceImpl<AgentDao, AgentEntity> imp
         agentPluginMappingService.saveBatch(toInsert);
         return entity.getId();
     }
+
 }
