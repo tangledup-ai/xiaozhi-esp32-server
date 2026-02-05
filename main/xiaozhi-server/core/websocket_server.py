@@ -67,6 +67,8 @@ class WebSocketServer:
         secret_key = self.config["server"]["auth_key"]
         expire_seconds = auth_config.get("expire_seconds", None)
         self.auth = AuthManager(secret_key=secret_key, expire_seconds=expire_seconds)
+        # Track active connections for tool proxy handler
+        self.active_connections = set()
 
     async def start(self):
         server_config = self.config["server"]
@@ -123,11 +125,15 @@ class WebSocketServer:
             self._intent,
             self,  # 传入server实例
         )
+        # Track this connection for tool proxy handler
+        self.active_connections.add(handler)
         try:
             await handler.handle_connection(websocket)
         except Exception as e:
             self.logger.bind(tag=TAG).error(f"处理连接时出错: {e}")
         finally:
+            # Remove from active connections tracking
+            self.active_connections.discard(handler)
             # 强制关闭连接（如果还没有关闭的话）
             try:
                 # 安全地检查WebSocket状态并关闭
