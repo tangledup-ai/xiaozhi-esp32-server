@@ -11,8 +11,7 @@ from core.handle.sendAudioHandle import sendAudioMessage, send_tts_message
 from core.utils.util import remove_punctuation_and_length, opus_datas_to_wav_bytes
 from core.providers.tools.device_mcp import (
     MCPClient,
-    send_mcp_initialize_message,
-    send_mcp_tools_list_request,
+    send_mcp_initialize_message
 )
 
 TAG = __name__
@@ -56,8 +55,6 @@ async def handleHelloMessage(conn, msg_json):
             conn.mcp_client = MCPClient()
             # 发送初始化
             asyncio.create_task(send_mcp_initialize_message(conn))
-            # 发送mcp消息，获取tools列表
-            asyncio.create_task(send_mcp_tools_list_request(conn))
 
     await conn.websocket.send(json.dumps(conn.welcome_msg))
 
@@ -145,7 +142,8 @@ async def wakeupWordsResponse(conn):
         # 获取当前音色
         voice = getattr(conn.tts, "voice", "default")
 
-        wav_bytes = opus_datas_to_wav_bytes(tts_result, sample_rate=16000)
+        # 使用链接的sample_rate
+        wav_bytes = opus_datas_to_wav_bytes(tts_result, sample_rate=conn.sample_rate)
         file_path = wakeup_words_config.generate_file_path(voice)
         with open(file_path, "wb") as f:
             f.write(wav_bytes)
