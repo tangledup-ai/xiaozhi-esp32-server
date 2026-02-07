@@ -20,19 +20,23 @@ async def sendAudioMessage(conn, sentenceType, audios, text):
         await send_tts_message(conn, "start", None)
 
     if sentenceType == SentenceType.FIRST:
-        # 同一句子的后续消息加入流控队列，其他情况立即发送
-        if (
-            hasattr(conn, "audio_rate_controller")
-            and conn.audio_rate_controller
-            and getattr(conn, "audio_flow_control", {}).get("sentence_id")
-            == conn.sentence_id
-        ):
-            conn.audio_rate_controller.add_message(
-                lambda: send_tts_message(conn, "sentence_start", text)
-            )
-        else:
-            # 新句子或流控器未初始化，立即发送
-            await send_tts_message(conn, "sentence_start", text)
+        # # 同一句子的后续消息加入流控队列，其他情况立即发送
+        # if (
+        #     hasattr(conn, "audio_rate_controller")
+        #     and conn.audio_rate_controller
+        #     and getattr(conn, "audio_flow_control", {}).get("sentence_id")
+        #     == conn.sentence_id
+        # ):
+        #     conn.audio_rate_controller.add_message(
+        #         lambda: send_tts_message(conn, "sentence_start", text)
+        #     )
+        # else:
+        #     # 新句子或流控器未初始化，立即发送
+        #     await send_tts_message(conn, "sentence_start", text)
+        
+        # Always send sentence_start text immediately to avoid text display
+        # being delayed behind audio packets in the rate controller queue
+        await send_tts_message(conn, "sentence_start", text)
 
     await sendAudio(conn, audios)
     # 发送句子开始消息
