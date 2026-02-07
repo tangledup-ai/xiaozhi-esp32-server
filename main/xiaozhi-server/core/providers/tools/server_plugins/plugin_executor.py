@@ -1,6 +1,10 @@
 """服务端插件工具执行器"""
 
-from typing import Dict, Any, List
+from typing import Dict, Any, List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from core.connection import ConnectionHandler
+    
 from ..base import ToolType, ToolDefinition, ToolExecutor
 from plugins_func.register import all_function_registry, Action, ActionResponse
 from config.logger import setup_logging
@@ -9,13 +13,13 @@ from config.logger import setup_logging
 class ServerPluginExecutor(ToolExecutor):
     """服务端插件工具执行器"""
 
-    def __init__(self, conn):
+    def __init__(self, conn: "ConnectionHandler"):
         self.conn = conn
         self.config = conn.config
         self.logger = setup_logging()
 
     async def execute(
-        self, conn, tool_name: str, arguments: Dict[str, Any]
+        self, conn: "ConnectionHandler", tool_name: str, arguments: Dict[str, Any]
     ) -> ActionResponse:
         """执行服务端插件工具"""
         func_item = all_function_registry.get(tool_name)

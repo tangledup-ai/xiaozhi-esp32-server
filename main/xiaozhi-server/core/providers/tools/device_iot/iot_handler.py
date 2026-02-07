@@ -4,12 +4,16 @@ import asyncio
 from config.logger import setup_logging
 from .iot_descriptor import IotDescriptor
 from .iot_storage import save_descriptors
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from core.connection import ConnectionHandler
 
 TAG = __name__
 logger = setup_logging()
 
 
-async def handleIotDescriptors(conn, descriptors):
+async def handleIotDescriptors(conn: "ConnectionHandler", descriptors):
     """处理物联网描述
 
     - 在 websocket 连接建立后，由设备上报 descriptors
@@ -74,7 +78,7 @@ async def handleIotDescriptors(conn, descriptors):
         conn.func_handler.current_support_functions()
 
 
-async def handleIotStatus(conn, states):
+async def handleIotStatus(conn: "ConnectionHandler", states):
     """处理物联网状态"""
     for state in states:
         for key, value in conn.iot_descriptors.items():
