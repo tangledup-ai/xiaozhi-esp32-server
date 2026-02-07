@@ -335,7 +335,7 @@ class ASRProvider(ASRProviderBase):
 
     async def close(self):
         """关闭资源"""
-        await self._cleanup(None)
+        await self._cleanup()
         if hasattr(self, 'decoder') and self.decoder is not None:
             try:
                 del self.decoder
