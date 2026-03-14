@@ -22,7 +22,13 @@ class SuppressInvalidHandshakeFilter(logging.Filter):
 def _setup_websockets_logger():
     """配置 websockets 相关的所有 logger，过滤无效握手错误"""
     filter_instance = SuppressInvalidHandshakeFilter()
-    for logger_name in ["websockets", "websockets.server", "websockets.client"]:
+    for logger_name in [
+        "websockets",
+        "websockets.server",
+        "websockets.client",
+        "websockets.asyncio.server",
+        "websockets.http11",
+    ]:
         logger = logging.getLogger(logger_name)
         logger.addFilter(filter_instance)
 

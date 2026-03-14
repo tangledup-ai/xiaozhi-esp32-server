@@ -23,6 +23,8 @@ services:
       - "8805:8805"
     security_opt:
       - seccomp:unconfined
+    stdin_open: true
+    tty: true
     environment:
       - TZ=Asia/Shanghai
       # UPDATE TO COMPUTER IP WHEN USING DOCKER

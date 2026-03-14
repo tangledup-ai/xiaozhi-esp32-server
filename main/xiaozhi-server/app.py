@@ -40,7 +40,12 @@ async def wait_for_exit() -> None:
 async def monitor_stdin():
     """监控标准输入，消费回车键"""
     while True:
-        await ainput()  # 异步等待输入，消费回车
+        try:
+            await ainput()  # 异步等待输入，消费回车
+        except EOFError:
+            # Docker 非交互场景下 stdin 可能不可用；退出该任务即可。
+            logger.bind(tag=TAG).warning("stdin 不可用，已停止 stdin_monitor")
+            return
 
 
 def task_exception_handler(task: asyncio.Task) -> None:
